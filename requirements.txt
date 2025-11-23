@@ -1,0 +1,30 @@
+# Google AI Development Kit
+google-adk>=0.1.0
+
+# Google GenAI (Official Unified SDK)
+# Reference: googleapis/python-genai v1.33.0
+google-genai>=1.33.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# HTTP & Web
+requests>=2.31.0
+feedparser>=6.0.10
+beautifulsoup4>=4.12.0
+lxml>=4.9.3
+trafilatura>=1.6.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Scientific Computing
+numpy>=1.24.0
+
+# Utilities
+pydantic>=2.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
