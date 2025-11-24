@@ -167,7 +167,7 @@ class AnalystAgentRunner:
         self.app_name = "insightcosmos_analyst"
 
         # Embedding client
-        self.genai_client = Client(api_key=self.config.GOOGLE_API_KEY)
+        self.genai_client = Client(api_key=self.config.google_api_key)
 
     async def analyze_article(
         self,
@@ -246,8 +246,8 @@ class AnalystAgentRunner:
                 import numpy as np
                 embedding_id = self.embedding_store.store(
                     article_id=article_id,
-                    embedding=np.array(embedding),
-                    model=self.config.EMBEDDING_MODEL
+                    vector=np.array(embedding),
+                    model="text-embedding-004"  # Gemini embedding model
                 )
 
             self.logger.info(
@@ -565,7 +565,7 @@ URL：{article.get('url', 'Unknown')}
             return None
 
         try:
-            model = model or self.config.EMBEDDING_MODEL
+            model = model or "text-embedding-004"  # Default embedding model
             result = self.genai_client.models.embed_content(
                 model=model,
                 contents=text

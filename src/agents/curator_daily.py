@@ -58,6 +58,7 @@ import re
 from google.adk.agents import LlmAgent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
+from google.genai.types import Content, Part
 
 from src.memory.article_store import ArticleStore
 from src.tools.email_sender import EmailSender, EmailConfig
@@ -411,9 +412,9 @@ class CuratorDailyRunner:
             self.logger.error(f"Error generating digest: {e}")
             return None
 
-    def _invoke_llm(self, user_input: str) -> Optional[str]:
+    async def _invoke_llm_async(self, user_input: str) -> Optional[str]:
         """
-        Invoke LLM and get response
+        Invoke LLM and get response (async)
 
         Args:
             user_input: User input message
@@ -423,24 +424,55 @@ class CuratorDailyRunner:
         """
         try:
             # Create session
-            session = self.session_service.get_or_create_session("curator_session")
+            session_id = "curator_session"
+            user_id = "ray"
+            await self.session_service.create_session(
+                app_name="InsightCosmos",
+                user_id=user_id,
+                session_id=session_id
+            )
 
-            # Run agent
+            # Run agent (use run_async with correct Content object)
             response_text = ""
-            for event in self.runner.run(
-                user_content=user_input,
-                session_id=session.id
-            ):
-                # Collect final response
-                if hasattr(event, 'content'):
-                    for content_block in event.content:
-                        if hasattr(content_block, 'text'):
-                            response_text += content_block.text
+            events_gen = self.runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=Content(parts=[Part(text=user_input)], role="user")
+            )
+
+            async for event in events_gen:
+                # Check if this is final response and extract text
+                if event.is_final_response() and event.content and event.content.parts:
+                    response_text = event.content.parts[0].text
+                    break
+
+            if not response_text:
+                self.logger.warning("LLM returned empty response")
+                return None
 
             return response_text.strip()
 
         except Exception as e:
+            import traceback
             self.logger.error(f"Error invoking LLM: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
+
+    def _invoke_llm(self, user_input: str) -> Optional[str]:
+        """
+        Invoke LLM and get response (sync wrapper)
+
+        Args:
+            user_input: User input message
+
+        Returns:
+            Optional[str]: LLM response or None if failed
+        """
+        import asyncio
+        try:
+            return asyncio.run(self._invoke_llm_async(user_input))
+        except Exception as e:
+            self.logger.error(f"Error in sync wrapper: {e}")
             return None
 
     def _parse_digest_json(self, response: str) -> Optional[Dict[str, Any]]:

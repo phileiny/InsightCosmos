@@ -76,7 +76,11 @@ def fetch_rss(feed_urls: List[str], max_articles_per_feed: int = 10) -> Dict[str
         20
     """
     logger = Logger.get_logger("fetch_rss")
-    logger.info(f"fetch_rss called with {len(feed_urls)} feeds")
+    logger.info(f"🔧 [TOOL] fetch_rss called")
+    logger.info(f"  → Feeds: {len(feed_urls)}, Max per feed: {max_articles_per_feed}")
+
+    import time
+    start_time = time.time()
 
     try:
         fetcher = RSSFetcher(timeout=30)
@@ -84,7 +88,8 @@ def fetch_rss(feed_urls: List[str], max_articles_per_feed: int = 10) -> Dict[str
             feed_urls=feed_urls,
             max_articles_per_feed=max_articles_per_feed
         )
-        logger.info(f"fetch_rss returned {result['summary']['total_articles']} articles")
+        elapsed = time.time() - start_time
+        logger.info(f"  ✓ fetch_rss returned {result['summary']['total_articles']} articles in {elapsed:.1f}s")
         return result
 
     except Exception as e:
@@ -130,14 +135,19 @@ def search_articles(query: str, max_results: int = 10) -> Dict[str, Any]:
         5
     """
     logger = Logger.get_logger("search_articles")
-    logger.info(f"search_articles called with query: '{query}'")
+    logger.info(f"🔧 [TOOL] search_articles called")
+    logger.info(f"  → Query: '{query}', Max results: {max_results}")
+
+    import time
+    start_time = time.time()
 
     try:
         search_tool = GoogleSearchGroundingTool()
         result = search_tool.search_articles(query=query, max_results=max_results)
         search_tool.close()
 
-        logger.info(f"search_articles returned {result['total_results']} articles")
+        elapsed = time.time() - start_time
+        logger.info(f"  ✓ search_articles returned {result['total_results']} articles in {elapsed:.1f}s")
         return result
 
     except Exception as e:
@@ -189,9 +199,21 @@ def create_scout_agent(instruction_file: str = "prompts/scout_prompt.txt") -> Ll
 
     logger.info(f"Loaded instruction from {instruction_file}")
 
+    from google.adk.models import Gemini
+    from dotenv import load_dotenv
+
+    # 載入環境變數
+    load_dotenv()
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GOOGLE_API_KEY not found in environment variables. "
+            "Please set it in .env file or environment."
+        )
+
     # 创建 Scout Agent
     agent = LlmAgent(
-        model="gemini-2.5-flash",
+        model=Gemini(model="gemini-2.5-flash", api_key=api_key),
         name="ScoutAgent",
         description="Collects AI and Robotics articles from RSS feeds and Google Search",
         instruction=instruction,
@@ -224,7 +246,7 @@ class ScoutAgentRunner:
         >>> print(f"Collected {len(result['articles'])} articles")
     """
 
-    APP_NAME = "InsightCosmos"
+    APP_NAME = "agents"  # 必須匹配 ADK agent 載入路徑推斷的名稱
     USER_ID = "system"
     SESSION_ID = "scout_session_001"
 
@@ -261,14 +283,21 @@ class ScoutAgentRunner:
             session_service=self.session_service
         )
 
-        # 创建会话
-        self.session = self.session_service.create_session(
-            app_name=self.APP_NAME,
-            user_id=self.USER_ID,
-            session_id=self.SESSION_ID
-        )
+        # Session 會在首次調用 collect_articles 時創建
+        self._session_initialized = False
 
         self.logger.info("ScoutAgentRunner initialized")
+
+    async def _ensure_session(self):
+        """確保 session 已創建（內部使用）"""
+        if not self._session_initialized:
+            await self.session_service.create_session(
+                app_name=self.APP_NAME,
+                user_id=self.USER_ID,
+                session_id=self.SESSION_ID
+            )
+            self._session_initialized = True
+            self.logger.debug(f"Session created: {self.SESSION_ID}")
 
     def collect_articles(self, user_prompt: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -292,6 +321,8 @@ class ScoutAgentRunner:
             >>> print(result['total_count'])
             25
         """
+        import asyncio
+
         self.logger.info("Starting article collection...")
 
         # 使用默认提示或自定义提示
@@ -304,53 +335,81 @@ class ScoutAgentRunner:
             parts=[types.Part(text=user_prompt)]
         )
 
-        try:
-            # 运行 Agent
-            events = self.runner.run(
-                user_id=self.USER_ID,
-                session_id=self.SESSION_ID,
-                new_message=content
-            )
+        async def _collect_async():
+            try:
+                # 確保 session 已創建
+                self.logger.info("  [1/4] Creating session...")
+                await self._ensure_session()
+                self.logger.info("  ✓ Session created")
 
-            # 提取最终结果
-            final_result = None
-            for event in events:
-                self.logger.debug(f"Event: {event}")
+                # 运行 Agent（使用 run_async）
+                self.logger.info("  [2/4] Starting LLM Agent execution...")
+                self.logger.info(f"  → User prompt: {user_prompt}")
 
-                if event.is_final_response() and event.content:
-                    final_result = self._parse_agent_output(event)
+                import time
+                start_time = time.time()
 
-            # 如果没有获取到最终结果
-            if final_result is None:
-                self.logger.warning("Agent did not return a final response")
+                events_gen = self.runner.run_async(
+                    user_id=self.USER_ID,
+                    session_id=self.SESSION_ID,
+                    new_message=content
+                )
+
+                # 提取最终结果
+                self.logger.info("  [3/4] Processing LLM events...")
+                final_result = None
+                event_count = 0
+
+                async for event in events_gen:
+                    event_count += 1
+                    elapsed = time.time() - start_time
+
+                    # 每 10 個事件或每 30 秒記錄一次進度
+                    if event_count % 10 == 0 or elapsed > 30:
+                        self.logger.info(f"  → Processing event #{event_count} (elapsed: {elapsed:.1f}s)")
+
+                    self.logger.debug(f"Event: {event}")
+
+                    if event.is_final_response() and event.content:
+                        self.logger.info(f"  ✓ Received final response (elapsed: {elapsed:.1f}s)")
+                        final_result = self._parse_agent_output(event)
+
+                # 如果没有获取到最终结果
+                if final_result is None:
+                    total_time = time.time() - start_time
+                    self.logger.warning(f"  ✗ Agent did not return a final response after {total_time:.1f}s and {event_count} events")
+                    return {
+                        "status": "error",
+                        "articles": [],
+                        "total_count": 0,
+                        "sources": {},
+                        "collected_at": datetime.now(timezone.utc),
+                        "error_message": "Agent did not return a final response"
+                    }
+
+                # 添加收集时间
+                final_result['collected_at'] = datetime.now(timezone.utc)
+
+                total_time = time.time() - start_time
+                self.logger.info(
+                    f"  [4/4] Article collection completed: {final_result.get('total_count', 0)} articles in {total_time:.1f}s"
+                )
+
+                return final_result
+
+            except Exception as e:
+                self.logger.error(f"Article collection failed: {e}")
                 return {
                     "status": "error",
                     "articles": [],
                     "total_count": 0,
                     "sources": {},
                     "collected_at": datetime.now(timezone.utc),
-                    "error_message": "Agent did not return a final response"
+                    "error_message": f"Collection error: {str(e)}"
                 }
 
-            # 添加收集时间
-            final_result['collected_at'] = datetime.now(timezone.utc)
-
-            self.logger.info(
-                f"Article collection completed: {final_result.get('total_count', 0)} articles"
-            )
-
-            return final_result
-
-        except Exception as e:
-            self.logger.error(f"Article collection failed: {e}")
-            return {
-                "status": "error",
-                "articles": [],
-                "total_count": 0,
-                "sources": {},
-                "collected_at": datetime.now(timezone.utc),
-                "error_message": f"Collection error: {str(e)}"
-            }
+        # 使用 asyncio.run 執行 async 函數
+        return asyncio.run(_collect_async())
 
     def _parse_agent_output(self, event) -> Dict[str, Any]:
         """
@@ -365,7 +424,7 @@ class ScoutAgentRunner:
         Raises:
             ValueError: 如果无法解析输出
         """
-        self.logger.debug("Parsing agent output...")
+        self.logger.info("  → Parsing agent output...")
 
         try:
             # 获取文本内容
@@ -381,7 +440,9 @@ class ScoutAgentRunner:
             if not text_content:
                 raise ValueError("No text content found in event parts")
 
-            self.logger.debug(f"Raw text content: {text_content[:200]}...")
+            content_length = len(text_content)
+            self.logger.info(f"  → Raw text content length: {content_length} chars")
+            self.logger.debug(f"Raw text content preview: {text_content[:500]}...")
 
             # 尝试解析 JSON
             # Agent 可能返回 Markdown 格式的 JSON（```json ... ```）
@@ -398,11 +459,16 @@ class ScoutAgentRunner:
             text_content = text_content.strip()
 
             # 解析 JSON
+            self.logger.info("  → Parsing JSON...")
             result = json.loads(text_content)
+            self.logger.info("  ✓ JSON parsed successfully")
 
             # 验证必需字段
             if "articles" not in result:
                 raise ValueError("Output missing 'articles' field")
+
+            raw_article_count = len(result["articles"])
+            self.logger.info(f"  → Found {raw_article_count} articles in JSON")
 
             # 添加默认值
             if "status" not in result:
@@ -415,10 +481,11 @@ class ScoutAgentRunner:
                 result["sources"] = self._count_sources(result["articles"])
 
             # 执行去重（保险机制）
+            self.logger.info("  → Deduplicating articles...")
             result["articles"] = self._deduplicate_articles(result["articles"])
             result["total_count"] = len(result["articles"])
 
-            self.logger.info(f"Parsed {result['total_count']} articles successfully")
+            self.logger.info(f"  ✓ Parsed {result['total_count']} unique articles successfully")
             return result
 
         except json.JSONDecodeError as e:
