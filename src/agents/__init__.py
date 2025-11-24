@@ -6,6 +6,7 @@ This module provides AI agents for the InsightCosmos system.
 Agents:
     - ScoutAgent: Collects AI and Robotics articles from RSS feeds and Google Search
     - AnalystAgent: Analyzes articles, extracts insights, and scores priority
+    - CuratorDailyAgent: Generates daily digest and sends email
 
 Usage:
     from src.agents import ScoutAgentRunner, AnalystAgentRunner, collect_articles
@@ -23,6 +24,7 @@ Usage:
 Version History:
     - 1.0.0: Scout Agent implementation (Stage 5)
     - 1.1.0: Analyst Agent implementation (Stage 7)
+    - 1.2.0: Curator Daily Agent implementation (Stage 8)
 """
 
 from src.agents.scout_agent import (
@@ -39,6 +41,12 @@ from src.agents.analyst_agent import (
     analyze_article
 )
 
+from src.agents.curator_daily import (
+    CuratorDailyRunner,
+    create_curator_agent,
+    generate_daily_digest
+)
+
 __all__ = [
     # Scout Agent
     'ScoutAgentRunner',
@@ -49,7 +57,11 @@ __all__ = [
     # Analyst Agent
     'AnalystAgentRunner',
     'create_analyst_agent',
-    'analyze_article'
+    'analyze_article',
+    # Curator Daily Agent
+    'CuratorDailyRunner',
+    'create_curator_agent',
+    'generate_daily_digest'
 ]
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'

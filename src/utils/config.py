@@ -23,8 +23,9 @@ class Config:
         google_search_engine_id: Google Custom Search Engine ID
         email_account: Email 发送账号
         email_password: Email 发送密码
-        email_smtp_host: SMTP 服务器地址
-        email_smtp_port: SMTP 端口
+        smtp_host: SMTP 服务器地址
+        smtp_port: SMTP 端口
+        smtp_use_tls: 是否使用 TLS 加密
         database_path: SQLite 数据库路径
         user_name: 用户名（个性化用）
         user_interests: 用户兴趣（逗号分隔）
@@ -42,8 +43,9 @@ class Config:
     # Email
     email_account: str
     email_password: str
-    email_smtp_host: str = "smtp.gmail.com"
-    email_smtp_port: int = 587
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_use_tls: bool = True
 
     # Database
     database_path: str = "data/insights.db"
@@ -54,6 +56,22 @@ class Config:
 
     # Logging
     log_level: str = "INFO"
+
+    @classmethod
+    def from_env(cls, env_path: str = ".env") -> "Config":
+        """
+        Alias for load() - Loads configuration from .env file
+
+        Args:
+            env_path: .env file path
+
+        Returns:
+            Config: Configuration object
+
+        Example:
+            >>> config = Config.from_env()
+        """
+        return cls.load(env_path)
 
     @classmethod
     def load(cls, env_path: str = ".env") -> "Config":
@@ -91,8 +109,9 @@ class Config:
                 google_api_key=os.getenv("GOOGLE_API_KEY", ""),
                 email_account=os.getenv("EMAIL_ACCOUNT", ""),
                 email_password=os.getenv("EMAIL_PASSWORD", ""),
-                email_smtp_host=os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com"),
-                email_smtp_port=int(os.getenv("EMAIL_SMTP_PORT", "587")),
+                smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),
+                smtp_port=int(os.getenv("SMTP_PORT", "587")),
+                smtp_use_tls=os.getenv("SMTP_USE_TLS", "true").lower() == "true",
                 database_path=os.getenv("DATABASE_PATH", "data/insights.db"),
                 user_name=os.getenv("USER_NAME", "Ray"),
                 user_interests=os.getenv("USER_INTERESTS", "AI,Robotics,Multi-Agent Systems"),
@@ -139,9 +158,9 @@ class Config:
                 )
 
         # 验证端口号
-        if not isinstance(self.email_smtp_port, int) or self.email_smtp_port <= 0:
+        if not isinstance(self.smtp_port, int) or self.smtp_port <= 0:
             raise ValueError(
-                f"Invalid SMTP port: {self.email_smtp_port}. "
+                f"Invalid SMTP port: {self.smtp_port}. "
                 f"Must be a positive integer."
             )
 
