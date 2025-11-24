@@ -60,6 +60,7 @@ def test_config():
 def test_database(test_config):
     """建立測試用資料庫（記憶體）"""
     db = Database.from_config(test_config)
+    db.init_db()  # Initialize schema for in-memory database
     return db
 
 

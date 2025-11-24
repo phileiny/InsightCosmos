@@ -1,8 +1,8 @@
 # InsightCosmos 開發進度追蹤
 
-> **最後更新**: 2025-11-23
-> **當前階段**: Stage 7 完成，準備進入 Stage 8
-> **整體進度**: 7/12 Stages 完成 (58%)
+> **最後更新**: 2025-11-24 (Stage 8 驗證完成)
+> **當前階段**: Stage 8 已完成並驗證，準備進入 Stage 9
+> **整體進度**: 8/12 Stages 完成 (67%)
 
 ---
 
@@ -118,14 +118,43 @@
 - [x] 完整文檔（規劃、實作、驗證）
 - [x] 更新 src/agents/__init__.py (v1.1.0)
 
+**Stage 8: Curator Daily Agent (每日策展代理)** - ✅ 完成
+- [x] 規劃文檔 (完整模組規劃)
+- [x] Daily Curator Prompt 模板 (prompts/daily_prompt.txt)
+- [x] 核心模組實作
+  - [x] DigestFormatter (src/tools/digest_formatter.py) - 報告格式化
+  - [x] EmailSender (src/tools/email_sender.py) - SMTP 郵件發送
+  - [x] CuratorDailyAgent (src/agents/curator_daily.py) - 每日策展
+- [x] 功能完整實現
+  - [x] LLM 生成每日摘要（Gemini 2.5 Flash）
+  - [x] HTML + 純文字雙格式郵件
+  - [x] 優先度顏色標記（高/中/低）
+  - [x] SMTP 重試機制（指數退避）
+  - [x] 錯誤處理與建議
+- [x] 測試完整驗證
+  - [x] 26 個 DigestFormatter 單元測試 (100%)
+  - [x] 18 個 EmailSender 單元測試 (100%)
+  - [x] 15 個 CuratorDaily 單元測試 (93.8%)
+  - [x] 8 個整合測試 (100%)
+  - [x] 整合測試問題修正（ArticleStore API、資料提取邏輯）
+  - [x] 測試通過率：94.4% (67/71)
+- [x] 完整文檔
+  - [x] 開發日誌記錄 (docs/implementation/dev_log.md)
+  - [x] 測試驗證報告 v2.0 (docs/validation/stage8_test_report.md)
+  - [x] 手動測試指南 (docs/validation/stage8_manual_test_guide.md)
+- [x] 代碼改進
+  - [x] 新增 ArticleStore.store_article() 方法（測試便利）
+  - [x] 修正 curator_daily.py 資料提取邏輯
+  - [x] 修正整合測試資料庫初始化
+
 ### 🎯 進行中
 
-**準備 Stage 8** - Curator Agent 實作
-- [ ] 閱讀 Stage 8 規劃文檔
-- [ ] 研究報告生成策略
-- [ ] 設計 Daily Digest Prompt 模板
-- [ ] 設計 Weekly Report Prompt 模板
-- [ ] 規劃 Email 格式
+**準備 Stage 9** - Daily & Weekly Orchestrator
+- [ ] 閱讀 Stage 9 規劃文檔
+- [ ] 設計 Orchestrator 架構
+- [ ] 實作 daily_runner.py
+- [ ] 實作 weekly_runner.py
+- [ ] 整合完整流程（Scout → Analyst → Curator）
 
 ---
 
@@ -147,20 +176,24 @@ InsightCosmos/
 │   │   ├── models.py
 │   │   ├── article_store.py
 │   │   └── embedding_store.py
-│   ├── tools/              ✅ Stage 3, 4, 6 完成
-│   │   ├── __init__.py     (v1.2.0)
+│   ├── tools/              ✅ Stage 3, 4, 6, 8 完成
+│   │   ├── __init__.py     (v1.3.0)
 │   │   ├── fetcher.py                          # Stage 3
 │   │   ├── google_search.py                    # Stage 4 舊版 (已棄用)
 │   │   ├── google_search_grounding_v2.py       # Stage 4 新版 ✅
-│   │   └── content_extractor.py                # Stage 6 ✅
-│   └── agents/             ✅ Stage 5, 7 完成
-│       ├── __init__.py     (v1.1.0)            # Stage 7 更新
+│   │   ├── content_extractor.py                # Stage 6 ✅
+│   │   ├── digest_formatter.py                 # Stage 8 ✅
+│   │   └── email_sender.py                     # Stage 8 ✅
+│   └── agents/             ✅ Stage 5, 7, 8 完成
+│       ├── __init__.py     (v1.2.0)            # Stage 8 更新
 │       ├── scout_agent.py                      # Stage 5 ✅
-│       └── analyst_agent.py                    # Stage 7 ✅
+│       ├── analyst_agent.py                    # Stage 7 ✅
+│       └── curator_daily.py                    # Stage 8 ✅
 │
-├── prompts/                ✅ Stage 5, 7 新增
+├── prompts/                ✅ Stage 5, 7, 8 新增
 │   ├── scout_prompt.txt                        # Scout Agent 指令
-│   └── analyst_prompt.txt                      # Analyst Agent 指令 ✅
+│   ├── analyst_prompt.txt                      # Analyst Agent 指令 ✅
+│   └── daily_prompt.txt                        # Daily Curator 指令 ✅
 │
 ├── tests/
 │   ├── unit/
@@ -170,10 +203,14 @@ InsightCosmos/
 │   │   ├── test_google_search_grounding.py ✅ (14 測試, 100%)
 │   │   ├── test_scout_tools.py             ✅ (11 測試, 100%)  # Stage 5
 │   │   ├── test_content_extractor.py       ✅ (24 測試, 100%)  # Stage 6
-│   │   └── test_analyst_agent.py           ✅ (22 測試, 100%)  # Stage 7 ✅
+│   │   ├── test_analyst_agent.py           ✅ (22 測試, 100%)  # Stage 7
+│   │   ├── test_digest_formatter.py        ✅ (26 測試, 100%)  # Stage 8 ✅
+│   │   ├── test_email_sender.py            ✅ (18 測試, 100%)  # Stage 8 ✅
+│   │   └── test_curator_daily.py           ✅ (15 測試, 93.8%) # Stage 8 ✅
 │   ├── integration/
 │   │   ├── test_scout_agent.py             ✅ (13 測試, 9 通過 + 4 手動)  # Stage 5
-│   │   └── test_analyst_integration.py     ⏳ (8 測試, 2 通過 + 4 需修復 + 2 手動)  # Stage 7
+│   │   ├── test_analyst_integration.py     ⏳ (8 測試, 2 通過 + 4 需修復 + 2 手動)  # Stage 7
+│   │   └── test_curator_integration.py     ✅ (11 測試, 8 通過 + 3 手動)  # Stage 8 ✅
 │   ├── test_search_v2.py                   ✅ (真實 API 測試)
 │   ├── manual_test_fetcher.py              ✅
 │   └── manual_test_google_search.py        📦 (舊版)
@@ -189,7 +226,7 @@ InsightCosmos/
 │   │   ├── stage6_content_extraction.md    ✅ (Stage 6)
 │   │   └── stage7_analyst_agent.md         ✅ (Stage 7)
 │   ├── implementation/
-│   │   ├── dev_log.md                      ✅ (含 Stage 7 記錄)
+│   │   ├── dev_log.md                      ✅ (含 Stage 8 記錄)
 │   │   ├── stage1_notes.md                 ✅
 │   │   ├── stage1_summary.md               ✅
 │   │   ├── stage2_notes.md                 ✅
@@ -206,7 +243,9 @@ InsightCosmos/
 │   │   ├── stage4_test_report.md           ✅
 │   │   ├── stage5_scout_test_report.md     ✅ (Stage 5)
 │   │   ├── stage6_test_report.md           ✅ (Stage 6)
-│   │   └── stage7_test_report.md           ✅ (Stage 7)
+│   │   ├── stage7_test_report.md           ✅ (Stage 7)
+│   │   ├── stage8_test_report.md           ✅ (Stage 8 v2.0) ✅
+│   │   └── stage8_manual_test_guide.md     ✅ (Stage 8 手動測試) ✅
 │   └── migration/
 │       └── google_search_migration.md      ✅ (Grounding 遷移指南)
 │

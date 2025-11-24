@@ -498,3 +498,87 @@ class ArticleStore:
         except Exception as e:
             self.logger.error(f"Failed to get all articles: {e}")
             raise
+
+    def store_article(self, article_data: Dict[str, Any]) -> int:
+        """
+        Store a complete article (convenience method for testing/migration)
+
+        This method accepts a full article dictionary and stores it directly,
+        including analysis results. Useful for testing and data migration.
+
+        Args:
+            article_data: Complete article dictionary with all fields
+
+        Returns:
+            int: Article ID
+
+        Raises:
+            ValueError: If URL already exists or required fields missing
+
+        Example:
+            >>> article_data = {
+            ...     "url": "https://example.com/article",
+            ...     "title": "Article Title",
+            ...     "content": "Content...",
+            ...     "summary": "Summary...",
+            ...     "key_insights": ["insight1", "insight2"],
+            ...     "priority_score": 0.85,
+            ...     "priority_reasoning": "Important...",
+            ...     "tags": "AI,Robotics",
+            ...     "status": "analyzed",
+            ...     "source_name": "TechCrunch",
+            ...     "published_at": datetime.now()
+            ... }
+            >>> article_id = store.store_article(article_data)
+        """
+        # Check required fields
+        if 'url' not in article_data or 'title' not in article_data:
+            raise ValueError("Missing required fields: url and title")
+
+        # Check if URL already exists
+        if self.exists(article_data['url']):
+            raise ValueError(f"Article with URL already exists: {article_data['url']}")
+
+        try:
+            with self.database.get_session() as session:
+                # Handle tags conversion
+                tags = article_data.get('tags')
+                if isinstance(tags, list):
+                    tags = ','.join(tags)
+
+                # Build analysis JSON from key_insights and priority_reasoning
+                analysis_dict = {}
+                if 'key_insights' in article_data:
+                    analysis_dict['key_insights'] = article_data['key_insights']
+                if 'priority_reasoning' in article_data:
+                    analysis_dict['priority_reasoning'] = article_data['priority_reasoning']
+
+                analysis = json.dumps(analysis_dict) if analysis_dict else None
+
+                article = Article(
+                    url=article_data['url'],
+                    title=article_data['title'],
+                    content=article_data.get('content'),
+                    summary=article_data.get('summary'),
+                    priority_score=article_data.get('priority_score'),
+                    analysis=analysis,
+                    tags=tags,
+                    source=article_data.get('source', 'unknown'),
+                    source_name=article_data.get('source_name'),
+                    published_at=article_data.get('published_at'),
+                    fetched_at=article_data.get('fetched_at', datetime.utcnow()),
+                    status=article_data.get('status', 'pending')
+                )
+
+                session.add(article)
+                session.flush()
+
+                article_id = article.id
+
+                self.logger.info(f"Stored article: {article_id} - {article_data['title'][:50]}")
+
+                return article_id
+
+        except Exception as e:
+            self.logger.error(f"Failed to store article: {e}")
+            raise

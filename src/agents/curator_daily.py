@@ -55,8 +55,9 @@ from datetime import datetime, date
 import json
 import re
 
-from google.adk import LlmAgent, InMemorySessionService, Runner
-from google.genai.models import Gemini
+from google.adk.agents import LlmAgent
+from google.adk.sessions import InMemorySessionService
+from google.adk.runners import Runner
 
 from src.memory.article_store import ArticleStore
 from src.tools.email_sender import EmailSender, EmailConfig
@@ -89,7 +90,7 @@ def create_curator_agent(config: Config) -> LlmAgent:
     # Create agent
     agent = LlmAgent(
         name="CuratorDailyAgent",
-        model=Gemini(model="gemini-2.5-flash"),
+        model="gemini-2.5-flash",
         description="Curates daily AI and Robotics digest from analyzed articles",
         instruction=instruction,
         tools=[]  # No tools needed - LLM only generates structured content
@@ -170,6 +171,7 @@ class CuratorDailyRunner:
         # Initialize ADK components
         self.session_service = InMemorySessionService()
         self.runner = Runner(
+            app_name="InsightCosmos",
             agent=self.agent,
             session_service=self.session_service
         )
@@ -299,15 +301,18 @@ class CuratorDailyRunner:
             # Ensure all articles have required fields
             processed_articles = []
             for article in articles:
-                # Parse tags if it's a string
+                # Parse tags if it's a string or list
                 tags = article.get('tags', '')
                 if isinstance(tags, str):
                     tags = [t.strip() for t in tags.split(',') if t.strip()]
                 elif tags is None:
                     tags = []
 
-                # Parse key_insights if it's a string
-                key_insights = article.get('key_insights', [])
+                # Extract analysis data (key_insights and priority_reasoning)
+                analysis = article.get('analysis', {}) or {}
+
+                # Parse key_insights from analysis
+                key_insights = analysis.get('key_insights', [])
                 if isinstance(key_insights, str):
                     try:
                         key_insights = json.loads(key_insights)
@@ -319,6 +324,9 @@ class CuratorDailyRunner:
                             if k.strip()
                         ]
 
+                # Get priority_reasoning from analysis
+                priority_reasoning = analysis.get('priority_reasoning', '')
+
                 processed_article = {
                     'id': article.get('id'),
                     'title': article.get('title', 'Untitled'),
@@ -326,7 +334,7 @@ class CuratorDailyRunner:
                     'summary': article.get('summary', ''),
                     'key_insights': key_insights,
                     'priority_score': article.get('priority_score', 0.0),
-                    'priority_reasoning': article.get('priority_reasoning', ''),
+                    'priority_reasoning': priority_reasoning,
                     'tags': tags,
                     'published_at': article.get('published_at'),
                     'source_name': article.get('source_name', 'Unknown')
