@@ -1,0 +1,40 @@
+{
+  "execution_info": {
+    "start_time": "2025-11-25T15:22:47.830919",
+    "end_time": "2025-11-25T15:31:10.515693",
+    "duration_seconds": 502.684774
+  },
+  "config": {
+    "user_name": "Ray",
+    "user_interests": "AI,Robotics,Multi-Agent Systems",
+    "interests_list": [
+      "AI",
+      "Robotics",
+      "Multi-Agent Systems"
+    ]
+  },
+  "data_sources": {
+    "rss_feeds": [
+      "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "https://venturebeat.com/category/ai/feed/",
+      "https://spectrum.ieee.org/feeds/topic/robotics.rss",
+      "https://www.therobotreport.com/feed/"
+    ],
+    "rss_articles_per_feed": 5,
+    "google_search_queries": "Generated based on: AI,Robotics,Multi-Agent Systems",
+    "google_search_results_per_query": 5
+  },
+  "result": {
+    "success": true,
+    "stats": {
+      "start_time": "2025-11-25T15:22:47.842274",
+      "end_time": "2025-11-25T15:31:10.515353",
+      "duration_seconds": 502.673079,
+      "phase1_collected": 33,
+      "phase1_stored": 30,
+      "phase2_analyzed": 31,
+      "phase3_sent": true
+    },
+    "errors": []
+  }
+}
