@@ -15,6 +15,140 @@
 
 ---
 
+## 2025-11-25 (凌晨) - 生產環境測試與 Curator Session 錯誤 ⚠️
+
+### 📊 生產測試結果
+
+**執行時間**: 2025-11-25 00:36 - 00:40
+**測試模式**: Production (非 dry-run)
+**總運行時間**: 235.3 秒 (~4 分鐘)
+
+#### Phase 1: Scout Agent ✅ 完全成功
+```
+收集文章: 20 篇
+存儲新文章: 10 篇
+去重效率: 50% (10 篇已存在)
+工具調用:
+  - fetch_rss: 2 feeds → 10 articles (0.5s)
+  - search_articles: 2 queries → 10 articles (30.8s)
+總耗時: 127.5 秒
+```
+
+#### Phase 2: Analyst Agent ✅ 完全成功
+```
+待分析文章: 11 篇
+成功分析: 9 篇
+失敗文章: 2 篇 (forbes.com, turing.com - 404 重定向問題)
+平均分析時間: ~7 秒/篇
+
+分析結果分佈:
+  - 高優先度 (≥0.8): 3 篇 (33%)
+    * googleblog.com: 0.90
+    * terralogic.com: 0.88
+    * medium.com: 0.85
+  - 中優先度 (0.5-0.8): 2 篇 (22%)
+    * ioni.ai: 0.80
+    * medium.com: 0.60
+  - 低優先度 (<0.5): 4 篇 (45%)
+
+Embedding 生成: 9 個 (model: text-embedding-004, dim: 768)
+```
+
+#### Phase 3: Curator Agent ❌ 失敗
+
+**錯誤信息**:
+```
+ERROR - src.agents.curator_daily - Error invoking LLM: 'InMemorySessionService' object has no attribute 'get_or_create_session'
+ERROR - src.agents.curator_daily - LLM returned empty response
+ERROR - src.agents.curator_daily - Failed to generate digest
+ERROR - DailyPipeline -   ✗ Curator failed: Unknown error
+```
+
+**問題分析**:
+1. **根本原因**: CuratorDaily 直接調用 `agent.invoke()`，但 Session 初始化不正確
+2. **錯誤位置**: `src/agents/curator_daily.py:generate_daily_digest()`
+3. **預期行為**: 應該使用 Runner 提供的正確 Session API
+4. **影響範圍**: 完全阻斷郵件發送功能
+
+**待修復方案**:
+- 方案 1: 參考 AnalystAgentRunner 的 Session 處理模式
+- 方案 2: 在 CuratorDaily 中正確初始化 InMemorySessionService
+- 方案 3: 創建 CuratorDailyRunner 類（推薦）
+
+### 📈 Pipeline 整體表現
+
+**成功率**:
+- Phase 1 (Scout): 100%
+- Phase 2 (Analyst): 82% (9/11 成功)
+- Phase 3 (Curator): 0% (Session 錯誤)
+- **整體**: 67% (2/3 階段完全成功)
+
+**效率分析**:
+- Scout 階段: 54% 耗時 (127.5s)
+- Analyst 階段: ~40% 耗時 (預估)
+- Curator 階段: 立即失敗 (<1s)
+
+**穩定性**:
+- ✅ 無 API 限流問題
+- ✅ 無資料庫錯誤
+- ✅ Content Extraction 成功率 82% (9/11)
+- ⚠️ Google Grounding 重定向 URL 有 18% 404 率
+
+### 🐛 需要修復的問題
+
+**優先級 P0 - 阻斷性錯誤**:
+1. **Curator Session 初始化**
+   - 錯誤: `'InMemorySessionService' object has no attribute 'get_or_create_session'`
+   - 文件: `src/agents/curator_daily.py`
+   - 影響: 完全無法發送郵件
+
+**優先級 P1 - 重要問題**:
+2. **Google Grounding 重定向 404**
+   - 問題: 部分重定向 URL 無法訪問
+   - 失敗率: 18% (2/11)
+   - 待改進: 添加重試機制或跳過無效 URL
+
+**優先級 P2 - 改進項**:
+3. **App name mismatch warning**
+   - 警告: `App name mismatch detected...`
+   - 影響: 無（僅警告）
+   - 待改進: 統一 app_name 配置
+
+### 📝 開發筆記
+
+**今日關鍵發現**:
+1. ✅ Scout → Analyst 流程完全穩定
+2. ✅ 內容提取成功率高（82%）
+3. ✅ LLM 分析品質良好（優先度分佈合理）
+4. ❌ Curator Session API 使用錯誤
+5. ⚠️ 需要處理 404 重定向問題
+
+**下一步行動**:
+1. 修復 Curator Session 初始化
+2. 創建 CuratorDailyRunner（遵循 Runner 模式）
+3. 添加 404 URL 重試機制
+4. 重新測試完整 Pipeline
+5. 驗證郵件發送功能
+
+### 🎯 測試數據總結
+
+```
+Pipeline Summary:
+  Duration: 235.3 seconds
+  Articles Collected: 20
+  Articles Stored: 10
+  Articles Analyzed: 9
+  Email Sent: False ❌
+  Errors: 0 (僅 Phase 3 失敗)
+```
+
+**資料庫狀態**:
+- 總文章數: 103 篇 (新增 10 篇)
+- 已分析文章: 88 → 97 (新增 9 篇)
+- Embeddings: 24 個 (新增 9 個)
+
+---
+
 ## 2025-11-24 (深夜續) - 完整 Pipeline 整合與修復 ✅
 
 ### ✅ 今日完成
