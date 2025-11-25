@@ -41,6 +41,138 @@ from src.utils.logger import Logger
 
 
 # ============================================================================
+# Article Classification Utilities
+# ============================================================================
+
+def categorize_article(title: str, content: str = "") -> str:
+    """
+    快速分類文章
+
+    根據標題和內容關鍵字判斷文章屬於哪個分類，
+    用於 Daily Digest 分組顯示。
+
+    Args:
+        title: 文章標題
+        content: 文章內容或摘要（可選）
+
+    Returns:
+        str: 分類標籤
+            - "robotics": 純機器人
+            - "ai_robotics": AI + 機器人交集
+            - "ai_general": 純 AI
+            - "industry": 其他產業新聞
+
+    Example:
+        >>> categorize_article("Boston Dynamics unveils new humanoid robot")
+        'robotics'
+        >>> categorize_article("GPT-5 announcement from OpenAI")
+        'ai_general'
+    """
+    text = f"{title} {content}".lower()
+
+    robotics_keywords = [
+        "robot", "robotics", "cobot", "amr", "agv", "manipulation",
+        "gripper", "humanoid", "warehouse automation", "delivery robot",
+        "service robot", "pudu", "keenon", "boston dynamics", "機器人",
+        "unitree", "universal robots", "figure ai", "agility", "tesla bot"
+    ]
+
+    ai_robotics_keywords = [
+        "embodied ai", "robot learning", "sim-to-real", "vla",
+        "robot foundation model", "isaac sim", "robot manipulation",
+        "vision language action", "robot training"
+    ]
+
+    ai_keywords = [
+        "llm", "gpt", "claude", "gemini", "language model", "chatbot",
+        "openai", "anthropic", "transformer", "neural network", "deep learning"
+    ]
+
+    robotics_score = sum(1 for kw in robotics_keywords if kw in text)
+    ai_robotics_score = sum(1 for kw in ai_robotics_keywords if kw in text)
+    ai_score = sum(1 for kw in ai_keywords if kw in text)
+
+    if robotics_score >= 2 and ai_score >= 1:
+        return "ai_robotics"
+    elif robotics_score >= 1:
+        return "robotics"
+    elif ai_robotics_score >= 1:
+        return "ai_robotics"
+    elif ai_score >= 1:
+        return "ai_general"
+    else:
+        return "industry"
+
+
+def is_competitor_news(title: str, content: str = "") -> bool:
+    """
+    檢查是否為競品新聞
+
+    用於標記重要的競品動態，可在報告中特別標註。
+
+    Args:
+        title: 文章標題
+        content: 文章內容或摘要（可選）
+
+    Returns:
+        bool: True 如果是競品相關新聞
+
+    Example:
+        >>> is_competitor_news("Pudu Robotics raises $100M Series C")
+        True
+        >>> is_competitor_news("New AI model released")
+        False
+    """
+    text = f"{title} {content}".lower()
+    competitors = [
+        "pudu", "keenon", "bear robotics", "segway", "gaussian",
+        "优必选", "unitree", "宇树", "figure ai", "agility",
+        "boston dynamics", "sanctuary ai", "apptronik"
+    ]
+    return any(comp in text for comp in competitors)
+
+
+def get_article_stats(articles: list) -> dict:
+    """
+    統計文章分類分佈
+
+    Args:
+        articles: 文章列表，每篇文章需包含 title 欄位
+
+    Returns:
+        dict: 分類統計
+            {
+                "robotics": 10,
+                "ai_robotics": 5,
+                "ai_general": 8,
+                "industry": 2,
+                "competitor_news": 3,
+                "total": 25
+            }
+    """
+    stats = {
+        "robotics": 0,
+        "ai_robotics": 0,
+        "ai_general": 0,
+        "industry": 0,
+        "competitor_news": 0,
+        "total": len(articles)
+    }
+
+    for article in articles:
+        title = article.get("title", "")
+        summary = article.get("summary", "")
+
+        category = categorize_article(title, summary)
+        stats[category] += 1
+
+        if is_competitor_news(title, summary):
+            stats["competitor_news"] += 1
+
+    return stats
+
+
+# ============================================================================
 # ADK Tool Wrappers
 # ============================================================================
 
@@ -474,6 +606,10 @@ class ScoutAgentRunner:
 
             # 解析 JSON
             self.logger.info("  → Parsing JSON...")
+
+            # 修復常見的 JSON 轉義問題
+            text_content = self._sanitize_json_string(text_content)
+
             result = json.loads(text_content)
             self.logger.info("  ✓ JSON parsed successfully")
 
@@ -535,6 +671,48 @@ class ScoutAgentRunner:
             self.logger.info(f"Removed {removed_count} duplicate articles")
 
         return unique_articles
+
+    def _sanitize_json_string(self, text: str) -> str:
+        """
+        修復 LLM 生成的 JSON 中常見的轉義問題
+
+        Args:
+            text: 原始 JSON 字串
+
+        Returns:
+            str: 修復後的 JSON 字串
+        """
+        import re
+
+        # 修復無效的轉義序列
+        # JSON 只允許: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+        # LLM 有時會生成 \x, \', 或其他無效轉義
+
+        # 修復常見問題：
+        # 1. \' -> ' （單引號不需要在 JSON 中轉義）
+        text = text.replace("\\'", "'")
+
+        # 2. 修復錯誤的 URL 轉義（例如 \/ 是合法的，但有時會有問題）
+        # 保持 \/ 不變
+
+        # 3. 修復可能的非法轉義字符
+        # 使用正則表達式找出所有的 \X 模式（X 不是合法的轉義字符）
+        valid_escapes = {'n', 'r', 't', 'b', 'f', '\\', '"', '/', 'u'}
+
+        def fix_escape(match):
+            char = match.group(1)
+            if char in valid_escapes:
+                return match.group(0)  # 保持原樣
+            elif char == 'u':
+                return match.group(0)  # Unicode 轉義
+            else:
+                # 移除無效的反斜線
+                return char
+
+        # 匹配所有反斜線後跟著一個字符的模式
+        text = re.sub(r'\\([^u])', fix_escape, text)
+
+        return text
 
     def _count_sources(self, articles: List[Dict[str, Any]]) -> Dict[str, int]:
         """
