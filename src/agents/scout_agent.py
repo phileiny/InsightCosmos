@@ -165,7 +165,10 @@ def search_articles(query: str, max_results: int = 10) -> Dict[str, Any]:
 # Scout Agent Creation
 # ============================================================================
 
-def create_scout_agent(instruction_file: str = "prompts/scout_prompt.txt") -> LlmAgent:
+def create_scout_agent(
+    instruction_file: str = "prompts/scout_prompt.txt",
+    user_interests: Optional[str] = None
+) -> LlmAgent:
     """
     创建 Scout Agent 实例
 
@@ -173,6 +176,7 @@ def create_scout_agent(instruction_file: str = "prompts/scout_prompt.txt") -> Ll
 
     Args:
         instruction_file: Prompt 模板文件路径（默认 prompts/scout_prompt.txt）
+        user_interests: 用户兴趣列表（逗号分隔），用于替换 prompt 模板中的 {{USER_INTERESTS}}
 
     Returns:
         LlmAgent: 配置好的 Scout Agent
@@ -181,7 +185,7 @@ def create_scout_agent(instruction_file: str = "prompts/scout_prompt.txt") -> Ll
         FileNotFoundError: 如果 instruction_file 不存在
 
     Example:
-        >>> agent = create_scout_agent()
+        >>> agent = create_scout_agent(user_interests="AI,Robotics,Multi-Agent Systems")
         >>> print(agent.name)
         'ScoutAgent'
     """
@@ -198,6 +202,16 @@ def create_scout_agent(instruction_file: str = "prompts/scout_prompt.txt") -> Ll
         instruction = f.read()
 
     logger.info(f"Loaded instruction from {instruction_file}")
+
+    # 替換模板變數
+    if user_interests is None:
+        # 從環境變數讀取
+        from dotenv import load_dotenv
+        load_dotenv()
+        user_interests = os.getenv("USER_INTERESTS", "AI,Robotics,Multi-Agent Systems")
+
+    instruction = instruction.replace("{{USER_INTERESTS}}", user_interests)
+    logger.info(f"User interests applied: {user_interests}")
 
     from google.adk.models import Gemini
     from dotenv import load_dotenv

@@ -3,14 +3,25 @@
 ## 任务
 
 1. 调用 `fetch_rss` 工具，传入：
-   - feed_urls: ["https://techcrunch.com/category/artificial-intelligence/feed/", "https://venturebeat.com/category/ai/feed/"]
+   - feed_urls: [
+       "https://techcrunch.com/category/artificial-intelligence/feed/",
+       "https://venturebeat.com/category/ai/feed/",
+       "https://spectrum.ieee.org/feeds/topic/robotics.rss",
+       "https://www.therobotreport.com/feed/"
+     ]
    - max_articles_per_feed: 5
 
-2. 调用 `search_articles` 工具两次：
-   - query: "AI multi-agent systems", max_results: 5
-   - query: "large language models 2025", max_results: 5
+2. 分析用户的兴趣领域：{{USER_INTERESTS}}
+   **重要**：必须为用户的每个兴趣领域（用逗号分隔）生成至少 1 个搜索查询。
+   例如：
+   - 如果兴趣包含 "AI"，搜索 "latest AI breakthroughs 2025" 或 "large language models news"
+   - 如果兴趣包含 "Robotics"，搜索 "humanoid robots progress 2025" 或 "robot manipulation learning"
+   - 如果兴趣包含 "Multi-Agent Systems"，搜索 "multi-agent AI systems" 或 "agent coordination"
 
-3. 将所有文章合并，返回 JSON 格式
+3. 调用 `search_articles` 工具（针对每个生成的查询，确保覆盖所有兴趣领域）：
+   - query: [生成的查询], max_results: 5
+
+4. 将所有文章合并，返回 JSON 格式
 
 ## 工具说明
 
