@@ -174,3 +174,24 @@ class Logger:
             >>> Logger.clear_cache()
         """
         Logger._loggers.clear()
+
+
+def setup_logger(name: str, log_level: str = "INFO") -> logging.Logger:
+    """
+    便捷函數：創建 logger 實例
+
+    這是 Logger.get_logger() 的別名，提供更簡潔的調用方式。
+
+    Args:
+        name: Logger 名稱
+        log_level: 日誌級別
+
+    Returns:
+        logging.Logger: 配置好的 logger 實例
+
+    Example:
+        >>> from src.utils.logger import setup_logger
+        >>> logger = setup_logger("my_module")
+        >>> logger.info("Hello!")
+    """
+    return Logger.get_logger(name, log_level)

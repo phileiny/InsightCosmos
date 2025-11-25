@@ -164,13 +164,17 @@ class DailyPipelineOrchestrator:
         Raises:
             Exception: 如果收集過程失敗
         """
-        from src.agents.scout_agent import collect_articles
+        from src.agents.scout_agent import ScoutAgentRunner, create_scout_agent
 
         try:
-            # 調用 Scout Agent（使用默認提示）
-            # Scout Agent 內部已配置好 RSS feeds 和 search queries
+            # 調用 Scout Agent（傳遞 user_interests 配置）
             self.logger.info("  Calling Scout Agent...")
-            result = collect_articles()
+            self.logger.info(f"  User interests: {self.config.user_interests}")
+
+            # 創建帶有 user_interests 的 Scout Agent
+            agent = create_scout_agent(user_interests=self.config.user_interests)
+            runner = ScoutAgentRunner(agent=agent)
+            result = runner.collect_articles()
 
             if result["status"] != "success":
                 raise Exception(f"Scout failed: {result.get('error_message', 'Unknown error')}")
