@@ -264,6 +264,72 @@ class ArticleStore:
             self.logger.error(f"Failed to get recent articles: {e}")
             raise
 
+    def get_by_date_range(
+        self,
+        start_date: str,
+        end_date: str,
+        status: Optional[str] = None,
+        min_priority: Optional[float] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get articles within specific date range
+
+        Args:
+            start_date: Start date (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+            end_date: End date (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+            status: Filter by status (optional: 'pending', 'analyzed', 'failed')
+            min_priority: Minimum priority score (optional, range: 0.0-1.0)
+            limit: Maximum number of results (optional)
+
+        Returns:
+            List[dict]: List of articles matching criteria, ordered by fetched_at (newest first)
+
+        Example:
+            >>> # Get analyzed articles from last week with high priority
+            >>> articles = store.get_by_date_range(
+            ...     start_date="2025-11-18",
+            ...     end_date="2025-11-25",
+            ...     status="analyzed",
+            ...     min_priority=0.6
+            ... )
+        """
+        try:
+            with self.database.get_session() as session:
+                # Build base query
+                query = session.query(Article).filter(
+                    Article.fetched_at >= start_date,
+                    Article.fetched_at <= end_date
+                )
+
+                # Apply optional filters
+                if status:
+                    query = query.filter(Article.status == status)
+
+                if min_priority is not None:
+                    query = query.filter(Article.priority_score >= min_priority)
+
+                # Order by newest first
+                query = query.order_by(desc(Article.fetched_at))
+
+                # Apply limit
+                if limit:
+                    query = query.limit(limit)
+
+                articles = query.all()
+
+                self.logger.info(
+                    f"Found {len(articles)} articles between {start_date} and {end_date}"
+                    + (f" with status={status}" if status else "")
+                    + (f" and min_priority={min_priority}" if min_priority else "")
+                )
+
+                return [article.to_dict() for article in articles]
+
+        except Exception as e:
+            self.logger.error(f"Failed to get articles by date range: {e}")
+            raise
+
     def get_top_priority(
         self,
         limit: int = 10,

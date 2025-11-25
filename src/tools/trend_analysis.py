@@ -221,7 +221,14 @@ class TrendAnalysisTool:
             # 從標題、標籤、摘要中提取關鍵字
             text = ""
             text += article.get("title", "") + " "
-            text += article.get("tags", "") + " "
+
+            # 處理 tags（可能是字串或列表）
+            tags = article.get("tags", "")
+            if isinstance(tags, list):
+                text += " ".join(tags) + " "
+            else:
+                text += str(tags) + " "
+
             text += article.get("summary", "")[:200]  # 只取摘要前 200 字元
 
             # 提取至少 4 字元的單詞（過濾太短的詞）

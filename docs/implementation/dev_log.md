@@ -15,6 +15,141 @@
 
 ---
 
+## 2025-11-25 - Stage 11: Weekly Pipeline 集成完成 ✅
+
+### 🎯 今日完成
+
+**Stage 11 完整實作與 Stage 10 問題修正**，Weekly Pipeline 端到端測試成功通過！
+
+### ✅ 完成內容
+
+1. **WeeklyPipelineOrchestrator 實作** (`src/orchestrator/weekly_runner.py`, ~440 行)
+   - 完整命令行介面（argparse）
+   - 日期驗證與處理（默認 7 天、格式驗證、邏輯驗證）
+   - 統計數據收集與顯示
+   - 錯誤處理與修正建議
+   - 主函數入口
+
+2. **Stage 10 問題修正**（7 個問題）
+   - `ArticleStore.get_by_date_range()` - 新增方法
+   - `EmbeddingStore.get_embeddings()` - 新增方法
+   - `Embedding.vector` → `Embedding.embedding` - 修正欄位名稱
+   - 聚類邏輯 - 過濾無 embedding 的文章
+   - `trend_analysis.py` - 修正 tags 類型處理
+   - `curator_weekly.py` - 修正 LLM Runner 調用（改用 async 模式）
+   - `generate_weekly_report()` - 修正統計數據返回
+
+3. **單元測試** (`tests/unit/test_weekly_runner.py`, 18 測試)
+   - 初始化測試
+   - 日期驗證測試（默認、自訂、無效格式、錯誤順序、範圍警告）
+   - 統計收集測試
+   - 錯誤建議測試
+   - CLI 參數解析測試
+
+4. **整合測試** (`tests/integration/test_weekly_pipeline.py`)
+   - Mock 數據流程測試
+   - 自訂日期測試
+   - 錯誤處理測試
+
+5. **端到端測試** ✅ 成功
+   - 執行命令: `python -m src.orchestrator.weekly_runner --dry-run`
+   - 執行時間: 17.3 秒
+   - 處理數據: 71 文章 → 5 集群 → 4 熱門趨勢 → 15 新興話題
+
+6. **文檔完成**
+   - `docs/implementation/stage11_implementation.md` - 實作筆記
+   - `docs/validation/stage11_test_report.md` - 測試報告
+   - `PROGRESS.md` - 進度更新
+   - `docs/implementation/dev_log.md` - 開發日誌
+
+### 🔧 技術實現亮點
+
+**1. 命令行介面設計**
+```bash
+# 測試模式
+python -m src.orchestrator.weekly_runner --dry-run
+
+# 自訂日期
+python -m src.orchestrator.weekly_runner --week-start 2025-11-18 --week-end 2025-11-24
+
+# 詳細日誌
+python -m src.orchestrator.weekly_runner --verbose
+```
+
+**2. 統計數據收集**
+```python
+# CuratorWeeklyRunner 返回完整統計
+return {
+    "status": "success",
+    "total_articles": 71,
+    "analyzed_articles": 71,
+    "num_clusters": 5,
+    "hot_trends": 4,
+    "emerging_topics": 15,
+    "email_sent": False  # dry-run 模式
+}
+```
+
+**3. LLM 調用修正（async 模式）**
+```python
+async def invoke_llm_async():
+    session_service = InMemorySessionService()
+    runner = Runner(agent=agent, app_name="InsightCosmos", session_service=session_service)
+    await session_service.create_session(app_name="InsightCosmos", user_id=user_id, session_id=session_id)
+    events_gen = runner.run_async(user_id=user_id, session_id=session_id, new_message=Content(...))
+    async for event in events_gen:
+        if event.is_final_response():
+            return event.content.parts[0].text
+```
+
+### 📊 端到端測試結果
+
+```
+============================================================
+✓ Weekly Pipeline Completed Successfully
+
+Stats:
+  Duration: 17.3s
+  Articles: 71 total, 71 analyzed
+  Clusters: 5 topics
+  Hot Trends: 4
+  Emerging Topics: 15
+  Email Sent: False
+  Recipients: sourcecor103@gmail.com
+============================================================
+```
+
+### 📊 代碼統計
+
+| 模組 | 文件 | 行數 |
+|------|------|------|
+| WeeklyPipelineOrchestrator | weekly_runner.py | ~440 |
+| 單元測試 | test_weekly_runner.py | ~350 |
+| 整合測試 | test_weekly_pipeline.py | ~150 |
+| 實作文檔 | stage11_implementation.md | ~510 |
+| 測試報告 | stage11_test_report.md | ~350 |
+| **總計** | **5 個文件** | **~1,800 行** |
+
+### 🎓 專案里程碑
+
+**已完成 Stages**: 11/12 (92%)
+- ✅ Stage 1-10: 全部完成
+- ✅ **Stage 11: Weekly Pipeline 集成** ← 今日完成
+- ⏳ Stage 12: QA & Optimization
+
+**總體進度**: 92% (11/12)
+
+**Phase 1 核心功能完成度**: 100%
+- ✅ Memory Universe（SQLite + Vector）
+- ✅ Scout Agent（RSS + Google Search）
+- ✅ Analyst Agent（LLM 分析 + Embedding）
+- ✅ Curator Daily Agent（Daily Digest + Email）
+- ✅ Daily Pipeline（完整日報流程）
+- ✅ Curator Weekly Agent（週報生成）
+- ✅ **Weekly Pipeline（完整週報流程）** ← 新增
+
+---
+
 ## 2025-11-25 - Stage 10: Curator Weekly Agent 實作完成 ✅
 
 ### 🎯 今日完成

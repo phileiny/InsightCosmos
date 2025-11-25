@@ -117,13 +117,12 @@ class CuratorWeeklyRunner:
                 "recipients": list,
                 "html_body": str,
                 "text_body": str,
-                "stats": {
-                    "total_articles": int,
-                    "analyzed_articles": int,
-                    "n_clusters": int,
-                    "hot_trends_count": int,
-                    "emerging_topics_count": int
-                },
+                "total_articles": int,
+                "analyzed_articles": int,
+                "num_clusters": int,
+                "hot_trends": int,
+                "emerging_topics": int,
+                "email_sent": bool,
                 "error_message": str,  # 錯誤時
                 "suggestion": str      # 錯誤時
             }
@@ -139,6 +138,15 @@ class CuratorWeeklyRunner:
         self.logger.info(f"Mode: {'DRY RUN' if dry_run else 'PRODUCTION'}")
         self.logger.info("=" * 60)
 
+        # 統計數據收集
+        stats = {
+            "total_articles": 0,
+            "analyzed_articles": 0,
+            "num_clusters": 0,
+            "hot_trends": 0,
+            "emerging_topics": 0
+        }
+
         try:
             # 1. 查詢本週文章
             self.logger.info("\n[Step 1/5] Querying weekly articles...")
@@ -149,9 +157,12 @@ class CuratorWeeklyRunner:
                     "status": "error",
                     "error_type": "no_articles",
                     "error_message": "No analyzed articles found for this week",
-                    "suggestion": "Run Daily Pipeline to collect and analyze articles first"
+                    "suggestion": "Run Daily Pipeline to collect and analyze articles first",
+                    **stats
                 }
 
+            stats["total_articles"] = len(articles)
+            stats["analyzed_articles"] = len(articles)
             self.logger.info(f"Found {len(articles)} analyzed articles")
 
             # 2. 向量聚類
@@ -159,16 +170,19 @@ class CuratorWeeklyRunner:
             clustering_result = self._cluster_articles(articles)
 
             if clustering_result["status"] != "success":
-                return clustering_result
+                return {**clustering_result, **stats}
 
             clusters = clustering_result["clusters"]
+            stats["num_clusters"] = len(clusters)
             self.logger.info(f"Identified {len(clusters)} topic clusters")
 
             # 3. 趨勢分析
             self.logger.info("\n[Step 3/5] Analyzing trends...")
             trend_result = self._analyze_trends(articles, clusters)
-            self.logger.info(f"Found {len(trend_result['hot_trends'])} hot trends")
-            self.logger.info(f"Found {len(trend_result['emerging_topics'])} emerging topics")
+            stats["hot_trends"] = len(trend_result['hot_trends'])
+            stats["emerging_topics"] = len(trend_result['emerging_topics'])
+            self.logger.info(f"Found {stats['hot_trends']} hot trends")
+            self.logger.info(f"Found {stats['emerging_topics']} emerging topics")
 
             # 4. LLM 生成報告
             self.logger.info("\n[Step 4/5] Generating report with LLM...")
@@ -177,7 +191,7 @@ class CuratorWeeklyRunner:
             )
 
             if report_data["status"] != "success":
-                return report_data
+                return {**report_data, **stats}
 
             # 5. 格式化並發送
             self.logger.info("\n[Step 5/5] Formatting and sending email...")
@@ -190,6 +204,9 @@ class CuratorWeeklyRunner:
                 self.logger.error("Weekly Report Generation Failed")
             self.logger.info("=" * 60)
 
+            # 合併統計數據到結果
+            send_result.update(stats)
+            send_result["email_sent"] = not dry_run and send_result["status"] == "success"
             return send_result
 
         except Exception as e:
@@ -198,7 +215,8 @@ class CuratorWeeklyRunner:
                 "status": "error",
                 "error_type": type(e).__name__,
                 "error_message": str(e),
-                "suggestion": "Check logs for detailed error information"
+                "suggestion": "Check logs for detailed error information",
+                **stats
             }
 
     def _get_weekly_articles(
@@ -266,12 +284,38 @@ class CuratorWeeklyRunner:
                 "suggestion": "Ensure Analyst Agent has generated embeddings"
             }
 
-        # 組織成 numpy 矩陣
-        embeddings_matrix = np.array([e["embedding"] for e in embeddings_data])
+        # 建立 article_id -> embedding 的映射
+        embedding_map = {e["article_id"]: e["embedding"] for e in embeddings_data}
 
-        # 準備元數據
+        # 只保留有 embedding 的文章
+        articles_with_embeddings = [
+            article for article in articles
+            if article["id"] in embedding_map
+        ]
+
+        # 檢查是否有足夠的文章進行聚類
+        if len(articles_with_embeddings) < 2:
+            return {
+                "status": "error",
+                "error_type": "insufficient_embeddings",
+                "error_message": f"Only {len(articles_with_embeddings)} articles have embeddings (minimum: 2)",
+                "suggestion": "Run Analyst Agent to generate more embeddings"
+            }
+
+        self.logger.info(
+            f"Clustering {len(articles_with_embeddings)} articles "
+            f"(filtered from {len(articles)} total)"
+        )
+
+        # 組織成 numpy 矩陣（按過濾後的文章順序）
+        embeddings_matrix = np.array([
+            embedding_map[article["id"]]
+            for article in articles_with_embeddings
+        ])
+
+        # 準備元數據（使用過濾後的文章）
         metadata = []
-        for article in articles:
+        for article in articles_with_embeddings:
             metadata.append({
                 "article_id": article["id"],
                 "title": article["title"],
@@ -280,8 +324,8 @@ class CuratorWeeklyRunner:
                 "priority_score": article.get("priority_score", 0.0)
             })
 
-        # 動態調整聚類數量
-        n_articles = len(articles)
+        # 動態調整聚類數量（使用有 embedding 的文章數）
+        n_articles = len(articles_with_embeddings)
         if n_articles >= 40:
             n_clusters = 5
         elif n_articles >= 25:
@@ -378,24 +422,61 @@ class CuratorWeeklyRunner:
         # 創建 Agent
         agent = create_weekly_curator_agent()
 
-        # 調用 Agent
+        # 調用 Agent（使用 async 方式，參考 Daily Curator）
         try:
-            from google.genai.types import Session, InMemorySessionService
-
-            session_service = InMemorySessionService()
-            session = session_service.create_session()
+            import asyncio
+            from google.adk.runners import Runner
+            from google.adk.sessions import InMemorySessionService
+            from google.genai.types import Content, Part
 
             # 將輸入數據轉為 JSON 字串
             input_json = json.dumps(input_data, ensure_ascii=False, indent=2)
+            user_input = f"請根據以下數據生成週報：\n\n{input_json}"
 
-            # 發送請求
-            response = agent.send_message(
-                message=f"請根據以下數據生成週報：\n\n{input_json}",
-                session=session
+            # 創建 session service 和 runner
+            session_service = InMemorySessionService()
+            runner = Runner(
+                agent=agent,
+                app_name="InsightCosmos",
+                session_service=session_service
             )
 
+            # 定義 async 函數
+            async def invoke_llm_async():
+                user_id = self.config.user_name or "user"
+                session_id = "weekly_curator_session"
+
+                # 創建 session
+                await session_service.create_session(
+                    app_name="InsightCosmos",
+                    user_id=user_id,
+                    session_id=session_id
+                )
+
+                # 執行 LLM
+                response_text = ""
+                events_gen = runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(parts=[Part(text=user_input)], role="user")
+                )
+
+                async for event in events_gen:
+                    # 檢查是否是最終響應
+                    if event.is_final_response() and event.content and event.content.parts:
+                        response_text = event.content.parts[0].text
+                        break
+
+                return response_text.strip() if response_text else None
+
+            # 執行 async 函數
+            final_response = asyncio.run(invoke_llm_async())
+
+            if not final_response:
+                raise Exception("No final response from LLM")
+
             # 解析輸出
-            report_json = self._parse_llm_output(response.final_response)
+            report_json = self._parse_llm_output(final_response)
 
             if report_json is None:
                 return {

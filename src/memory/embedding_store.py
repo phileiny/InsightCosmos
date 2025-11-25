@@ -399,6 +399,55 @@ class EmbeddingStore:
         """
         return pickle.loads(data)
 
+    def get_embeddings(
+        self,
+        article_ids: List[int],
+        model: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get embeddings for specific articles (with vector data)
+
+        Args:
+            article_ids: List of article IDs to retrieve embeddings for
+            model: Filter by model name (optional)
+
+        Returns:
+            List[dict]: List of embeddings with vector data
+
+        Example:
+            >>> embeddings = store.get_embeddings([1, 2, 3])
+        """
+        try:
+            with self.database.get_session() as session:
+                query = session.query(Embedding).filter(
+                    Embedding.article_id.in_(article_ids)
+                )
+
+                if model:
+                    query = query.filter(Embedding.model == model)
+
+                embeddings = query.all()
+
+                results = []
+                for emb in embeddings:
+                    results.append({
+                        "article_id": emb.article_id,
+                        "embedding": self.deserialize_vector(emb.embedding),
+                        "model": emb.model,
+                        "dimension": emb.dimension,
+                        "created_at": emb.created_at.isoformat()
+                    })
+
+                self.logger.info(
+                    f"Retrieved {len(results)} embeddings for {len(article_ids)} articles"
+                )
+
+                return results
+
+        except Exception as e:
+            self.logger.error(f"Failed to get embeddings: {e}")
+            raise
+
     def get_all_embeddings(
         self,
         model: Optional[str] = None,

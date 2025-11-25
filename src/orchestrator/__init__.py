@@ -5,10 +5,12 @@ InsightCosmos Orchestrator Module
 """
 
 from .daily_runner import DailyPipelineOrchestrator, run_daily_pipeline
+from .weekly_runner import WeeklyPipelineOrchestrator
 
 __all__ = [
     "DailyPipelineOrchestrator",
-    "run_daily_pipeline"
+    "run_daily_pipeline",
+    "WeeklyPipelineOrchestrator",
 ]
 
 __version__ = "1.0.0"
