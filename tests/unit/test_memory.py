@@ -50,8 +50,6 @@ def test_config(temp_db_path):
     """Create a test configuration"""
     config = Config(
         google_api_key="test_google_key",
-        search_api_key="test_search_key",
-        search_engine_id="test_engine_id",
         email_account="test@example.com",
         email_password="test_password",
         database_path=temp_db_path

@@ -122,21 +122,25 @@ class TestAnalystAgentRunner:
     def mock_config(self):
         """Mock Config"""
         config = Mock(spec=Config)
-        config.GOOGLE_API_KEY = "test_key"
-        config.EMBEDDING_MODEL = "text-embedding-004"
-        config.USER_NAME = "Ray"
-        config.USER_INTERESTS = "AI, Robotics"
+        config.google_api_key = "test_key"
+        config.embedding_model = "text-embedding-004"
+        config.user_name = "Ray"
+        config.user_interests = "AI, Robotics"
         return config
 
     @pytest.fixture
     def runner(self, mock_agent, mock_article_store, mock_embedding_store, mock_config):
         """Create AnalystAgentRunner with mocked dependencies"""
-        return AnalystAgentRunner(
-            agent=mock_agent,
-            article_store=mock_article_store,
-            embedding_store=mock_embedding_store,
-            config=mock_config
-        )
+        # Mock genai.Client to avoid real API calls
+        with patch("src.agents.analyst_agent.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            return AnalystAgentRunner(
+                agent=mock_agent,
+                article_store=mock_article_store,
+                embedding_store=mock_embedding_store,
+                config=mock_config
+            )
 
     def test_runner_initialization(self, runner, mock_agent, mock_article_store, mock_embedding_store):
         """Test runner initialization"""
@@ -367,26 +371,30 @@ class TestAnalystAgentIntegration:
     @pytest.fixture
     def mock_embedding_store(self):
         store = Mock()
-        store.create = Mock(return_value=101)
+        store.store = Mock(return_value=101)  # 使用 store() 方法而非 create()
         return store
 
     @pytest.fixture
     def mock_config(self):
         config = Mock()
-        config.GOOGLE_API_KEY = "test_key"
-        config.EMBEDDING_MODEL = "text-embedding-004"
-        config.USER_NAME = "Ray"
-        config.USER_INTERESTS = "AI, Robotics"
+        config.google_api_key = "test_key"  # 使用小寫屬性名
+        config.embedding_model = "text-embedding-004"
+        config.user_name = "Ray"
+        config.user_interests = "AI, Robotics"
         return config
 
     @pytest.fixture
     def runner(self, mock_agent, mock_article_store, mock_embedding_store, mock_config):
-        return AnalystAgentRunner(
-            agent=mock_agent,
-            article_store=mock_article_store,
-            embedding_store=mock_embedding_store,
-            config=mock_config
-        )
+        # Mock genai.Client to avoid real API calls
+        with patch("src.agents.analyst_agent.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            return AnalystAgentRunner(
+                agent=mock_agent,
+                article_store=mock_article_store,
+                embedding_store=mock_embedding_store,
+                config=mock_config
+            )
 
     @pytest.mark.asyncio
     async def test_analyze_article_success(self, runner, mock_article_store, mock_embedding_store):
@@ -422,7 +430,7 @@ class TestAnalystAgentIntegration:
 
                 # Verify store calls
                 mock_article_store.update_analysis.assert_called_once()
-                mock_embedding_store.create.assert_called_once()
+                mock_embedding_store.store.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_analyze_article_not_found(self, runner, mock_article_store):

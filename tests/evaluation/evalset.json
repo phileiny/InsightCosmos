@@ -1,0 +1,268 @@
+{
+  "eval_set_id": "insightcosmos_v1",
+  "description": "InsightCosmos Phase 1 Evaluation Test Cases",
+  "version": "1.0.0",
+  "created_at": "2025-11-25",
+  "eval_cases": [
+    {
+      "eval_id": "scout_basic_collection",
+      "agent": "ScoutAgent",
+      "description": "Scout Agent 基本收集功能測試",
+      "category": "functional",
+      "conversation": [
+        {
+          "user_content": "收集今日 AI 和 Robotics 相關新聞",
+          "expected_tools": ["fetch_rss", "search_articles"],
+          "criteria": {
+            "tool_trajectory_match": true,
+            "min_articles": 5,
+            "has_source_diversity": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "has_articles": true,
+        "article_fields": ["title", "url", "source", "published_at"]
+      }
+    },
+    {
+      "eval_id": "scout_keyword_search",
+      "agent": "ScoutAgent",
+      "description": "Scout Agent 關鍵字搜尋測試",
+      "category": "functional",
+      "conversation": [
+        {
+          "user_content": "搜尋關於 Multi-Agent Systems 的最新文章",
+          "expected_tools": ["search_articles"],
+          "criteria": {
+            "keyword_relevance": true,
+            "min_articles": 3
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "keyword_match": "Multi-Agent"
+      }
+    },
+    {
+      "eval_id": "analyst_quality_analysis",
+      "agent": "AnalystAgent",
+      "description": "Analyst Agent 分析品質測試",
+      "category": "quality",
+      "conversation": [
+        {
+          "user_content": "分析這篇關於 Google ADK 的文章並給出評分",
+          "input_article": {
+            "title": "Google ADK: Building AI Agents Made Easy",
+            "content": "Google's Agent Development Kit (ADK) provides a comprehensive framework for building AI agents...",
+            "url": "https://example.com/adk-article"
+          },
+          "criteria": {
+            "has_summary": true,
+            "has_key_insights": true,
+            "has_priority_score": true,
+            "priority_score_range": [0, 1],
+            "has_category": true,
+            "has_reasoning": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "analysis_fields": [
+          "summary",
+          "key_insights",
+          "tech_stack",
+          "category",
+          "relevance_score",
+          "priority_score",
+          "reasoning"
+        ]
+      }
+    },
+    {
+      "eval_id": "analyst_relevance_scoring",
+      "agent": "AnalystAgent",
+      "description": "Analyst Agent 相關性評分準確度",
+      "category": "quality",
+      "conversation": [
+        {
+          "user_content": "評估這篇文章與用戶興趣 'AI, Robotics, Multi-Agent Systems' 的相關性",
+          "input_article": {
+            "title": "New Advances in Robotic Navigation Using Multi-Agent Systems",
+            "content": "Researchers have developed a novel approach to robotic navigation..."
+          },
+          "criteria": {
+            "relevance_score_min": 0.7,
+            "reasoning_mentions_interests": true
+          }
+        }
+      ],
+      "expected_output": {
+        "high_relevance": true
+      }
+    },
+    {
+      "eval_id": "analyst_low_relevance_detection",
+      "agent": "AnalystAgent",
+      "description": "Analyst Agent 低相關性文章檢測",
+      "category": "quality",
+      "conversation": [
+        {
+          "user_content": "評估這篇文章與用戶興趣的相關性",
+          "input_article": {
+            "title": "Best Recipes for Summer Cooking",
+            "content": "Here are 10 delicious recipes for your summer barbecue..."
+          },
+          "criteria": {
+            "relevance_score_max": 0.3,
+            "correctly_identifies_low_relevance": true
+          }
+        }
+      ],
+      "expected_output": {
+        "low_relevance": true
+      }
+    },
+    {
+      "eval_id": "curator_daily_digest",
+      "agent": "CuratorDailyAgent",
+      "description": "Curator Agent 日報生成測試",
+      "category": "functional",
+      "conversation": [
+        {
+          "user_content": "生成今日 AI 新聞摘要",
+          "input_articles": [
+            {"title": "Article 1", "priority_score": 0.95, "summary": "Summary 1"},
+            {"title": "Article 2", "priority_score": 0.85, "summary": "Summary 2"},
+            {"title": "Article 3", "priority_score": 0.75, "summary": "Summary 3"}
+          ],
+          "criteria": {
+            "has_headline": true,
+            "has_articles_section": true,
+            "article_count_range": [3, 10],
+            "sorted_by_priority": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "format": "email",
+        "has_subject": true,
+        "has_body": true
+      }
+    },
+    {
+      "eval_id": "curator_weekly_trends",
+      "agent": "CuratorWeeklyAgent",
+      "description": "Curator Agent 週報趨勢分析測試",
+      "category": "functional",
+      "conversation": [
+        {
+          "user_content": "生成本週 AI 趨勢報告",
+          "input_data": {
+            "week_start": "2025-11-18",
+            "week_end": "2025-11-24",
+            "article_count": 50
+          },
+          "criteria": {
+            "has_hot_trends": true,
+            "min_trends": 2,
+            "has_emerging_topics": true,
+            "has_weekly_summary": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "has_clusters": true,
+        "has_trends": true
+      }
+    },
+    {
+      "eval_id": "pipeline_daily_e2e",
+      "agent": "DailyPipeline",
+      "description": "Daily Pipeline 端到端測試",
+      "category": "integration",
+      "conversation": [
+        {
+          "user_content": "執行完整的日報流程",
+          "criteria": {
+            "scout_success": true,
+            "analyst_success": true,
+            "curator_success": true,
+            "email_generated": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success",
+        "phases_completed": 3
+      }
+    },
+    {
+      "eval_id": "pipeline_weekly_e2e",
+      "agent": "WeeklyPipeline",
+      "description": "Weekly Pipeline 端到端測試",
+      "category": "integration",
+      "conversation": [
+        {
+          "user_content": "執行完整的週報流程",
+          "input_params": {
+            "week_start": "2025-11-18",
+            "week_end": "2025-11-24"
+          },
+          "criteria": {
+            "data_collection_success": true,
+            "clustering_success": true,
+            "trend_analysis_success": true,
+            "report_generated": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success"
+      }
+    },
+    {
+      "eval_id": "memory_persistence",
+      "agent": "MemoryLayer",
+      "description": "Memory Layer 持久化測試",
+      "category": "functional",
+      "conversation": [
+        {
+          "user_content": "存儲並檢索文章",
+          "criteria": {
+            "article_stored": true,
+            "article_retrievable": true,
+            "embedding_stored": true,
+            "similarity_search_works": true
+          }
+        }
+      ],
+      "expected_output": {
+        "status": "success"
+      }
+    }
+  ],
+  "metrics": {
+    "tool_trajectory_avg_score": {
+      "target": 0.9,
+      "description": "工具使用軌跡平均分數"
+    },
+    "response_match_score": {
+      "target": 0.8,
+      "description": "回應匹配分數"
+    },
+    "functional_coverage": {
+      "target": 1.0,
+      "description": "功能測試覆蓋率"
+    },
+    "quality_score": {
+      "target": 0.85,
+      "description": "品質評估分數"
+    }
+  }
+}

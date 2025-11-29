@@ -1,0 +1,97 @@
+{
+  "evaluator": {
+    "model": "gemini-2.5-flash",
+    "description": "InsightCosmos Phase 1 評估配置",
+    "version": "1.0.0"
+  },
+  "thresholds": {
+    "tool_trajectory_avg_score": 0.9,
+    "response_match_score": 0.8,
+    "min_pass_rate": 0.8
+  },
+  "agents": {
+    "ScoutAgent": {
+      "module": "src.agents.scout_agent",
+      "class": "ScoutAgentRunner",
+      "expected_tools": ["fetch_rss", "search_articles"]
+    },
+    "AnalystAgent": {
+      "module": "src.agents.analyst_agent",
+      "class": "AnalystAgentRunner",
+      "expected_tools": []
+    },
+    "CuratorDailyAgent": {
+      "module": "src.agents.curator_daily",
+      "function": "generate_daily_digest",
+      "expected_tools": ["format_digest", "send_email"]
+    },
+    "CuratorWeeklyAgent": {
+      "module": "src.agents.curator_weekly",
+      "function": "generate_weekly_report",
+      "expected_tools": ["cluster_articles", "analyze_trends", "format_report"]
+    }
+  },
+  "test_categories": {
+    "functional": {
+      "weight": 0.4,
+      "description": "功能性測試 - 驗證核心功能"
+    },
+    "quality": {
+      "weight": 0.3,
+      "description": "品質測試 - 驗證輸出品質"
+    },
+    "integration": {
+      "weight": 0.3,
+      "description": "整合測試 - 驗證端到端流程"
+    }
+  },
+  "criteria_definitions": {
+    "tool_trajectory_match": {
+      "type": "boolean",
+      "description": "工具調用順序是否符合預期"
+    },
+    "min_articles": {
+      "type": "number",
+      "description": "最少返回文章數"
+    },
+    "has_source_diversity": {
+      "type": "boolean",
+      "description": "是否有多元來源"
+    },
+    "has_summary": {
+      "type": "boolean",
+      "description": "是否包含摘要"
+    },
+    "has_key_insights": {
+      "type": "boolean",
+      "description": "是否包含關鍵洞察"
+    },
+    "has_priority_score": {
+      "type": "boolean",
+      "description": "是否包含優先度評分"
+    },
+    "priority_score_range": {
+      "type": "range",
+      "description": "優先度評分範圍"
+    },
+    "relevance_score_min": {
+      "type": "number",
+      "description": "最低相關性分數"
+    },
+    "relevance_score_max": {
+      "type": "number",
+      "description": "最高相關性分數"
+    }
+  },
+  "output_format": {
+    "report_type": "markdown",
+    "output_dir": "reports/evaluation",
+    "include_details": true,
+    "include_recommendations": true
+  },
+  "environment": {
+    "timeout_seconds": 300,
+    "retry_count": 2,
+    "parallel_execution": false
+  }
+}

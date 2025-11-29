@@ -652,8 +652,16 @@ class CuratorWeeklyRunner:
 
         # 發送郵件
         if not dry_run:
-            sender = EmailSender(self.config)
-            send_result = sender.send_html_email(
+            from src.tools.email_sender import EmailConfig
+            email_config = EmailConfig(
+                smtp_host=self.config.smtp_host,
+                smtp_port=self.config.smtp_port,
+                sender_email=self.config.email_account,
+                sender_password=self.config.email_password,
+                use_tls=self.config.smtp_use_tls
+            )
+            sender = EmailSender(email_config)
+            send_result = sender.send(
                 to_email=self.config.email_account,
                 subject=subject,
                 html_body=html_body,

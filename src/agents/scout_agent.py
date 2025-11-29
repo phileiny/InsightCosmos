@@ -674,7 +674,7 @@ class ScoutAgentRunner:
 
     def _sanitize_json_string(self, text: str) -> str:
         """
-        修復 LLM 生成的 JSON 中常見的轉義問題
+        修復 LLM 生成的 JSON 中常見的轉義問題和控制字符
 
         Args:
             text: 原始 JSON 字串
@@ -682,37 +682,90 @@ class ScoutAgentRunner:
         Returns:
             str: 修復後的 JSON 字串
         """
-        import re
+        # JSON 合法的轉義字符
+        valid_escapes = {'"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'}
 
-        # 修復無效的轉義序列
-        # JSON 只允許: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
-        # LLM 有時會生成 \x, \', 或其他無效轉義
+        # 策略：逐字符處理，追踪是否在字串內部
+        # 在字串內部時，將控制字符轉換為轉義序列，並修復無效轉義
 
-        # 修復常見問題：
-        # 1. \' -> ' （單引號不需要在 JSON 中轉義）
-        text = text.replace("\\'", "'")
+        result = []
+        in_string = False
+        i = 0
+        length = len(text)
 
-        # 2. 修復錯誤的 URL 轉義（例如 \/ 是合法的，但有時會有問題）
-        # 保持 \/ 不變
+        while i < length:
+            char = text[i]
 
-        # 3. 修復可能的非法轉義字符
-        # 使用正則表達式找出所有的 \X 模式（X 不是合法的轉義字符）
-        valid_escapes = {'n', 'r', 't', 'b', 'f', '\\', '"', '/', 'u'}
+            if not in_string:
+                # 不在字串內
+                if char == '"':
+                    in_string = True
+                result.append(char)
+                i += 1
+                continue
 
-        def fix_escape(match):
-            char = match.group(1)
-            if char in valid_escapes:
-                return match.group(0)  # 保持原樣
-            elif char == 'u':
-                return match.group(0)  # Unicode 轉義
+            # 在字串內部
+            if char == '"':
+                # 結束字串
+                in_string = False
+                result.append(char)
+                i += 1
+                continue
+
+            if char == '\\':
+                # 遇到反斜線，檢查下一個字符
+                if i + 1 < length:
+                    next_char = text[i + 1]
+                    if next_char in valid_escapes:
+                        # 合法的轉義序列
+                        if next_char == 'u':
+                            # Unicode 轉義，需要 4 個十六進制數字
+                            if i + 5 < length:
+                                unicode_seq = text[i+2:i+6]
+                                if all(c in '0123456789abcdefABCDEF' for c in unicode_seq):
+                                    # 合法的 Unicode 轉義
+                                    result.append(text[i:i+6])
+                                    i += 6
+                                    continue
+                            # 不合法的 Unicode 轉義，移除反斜線
+                            result.append('u')
+                            i += 2
+                            continue
+                        else:
+                            # 其他合法轉義
+                            result.append(char)
+                            result.append(next_char)
+                            i += 2
+                            continue
+                    else:
+                        # 非法轉義，移除反斜線，保留字符
+                        # 例如 \' -> '，\x -> x
+                        result.append(next_char)
+                        i += 2
+                        continue
+                else:
+                    # 反斜線在結尾，移除它
+                    i += 1
+                    continue
+
+            # 處理控制字符
+            ord_char = ord(char)
+            if ord_char < 32:
+                if char == '\n':
+                    result.append('\\n')
+                elif char == '\r':
+                    result.append('\\r')
+                elif char == '\t':
+                    result.append('\\t')
+                else:
+                    # 其他控制字符轉為 Unicode 轉義
+                    result.append(f'\\u{ord_char:04x}')
             else:
-                # 移除無效的反斜線
-                return char
+                result.append(char)
 
-        # 匹配所有反斜線後跟著一個字符的模式
-        text = re.sub(r'\\([^u])', fix_escape, text)
+            i += 1
 
-        return text
+        return ''.join(result)
 
     def _count_sources(self, articles: List[Dict[str, Any]]) -> Dict[str, int]:
         """
