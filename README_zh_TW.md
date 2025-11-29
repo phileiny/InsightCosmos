@@ -361,6 +361,7 @@ ps aux | grep daily_runner
 
 - [USER_MANUAL.md](USER_MANUAL.md) - Complete User Manual (English)
 - [USER_MANUAL_zh_TW.md](USER_MANUAL_zh_TW.md) - 完整使用手冊（繁體中文）
+- [ADK 核心應用範例](docs/ADK_Usage_Examples.md) - Google ADK 核心應用範例說明
 - [CLAUDE.md](CLAUDE.md) - Claude Code 專案指南
 - [PROGRESS.md](PROGRESS.md) - 開發進度追蹤
 - `docs/planning/` - 規劃文件
