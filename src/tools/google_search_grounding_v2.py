@@ -395,6 +395,15 @@ class GoogleSearchGroundingTool:
             # Extract domain as source_name
             source_name = self.extract_domain(url)
 
+            # If title is empty or just a domain, try to extract from URL path
+            if not title or title == source_name or '.' in title and '/' not in title:
+                title = self.extract_title_from_url(url)
+
+            # Skip if we still couldn't get a meaningful title
+            if not title or title == source_name:
+                self.logger.debug(f"Skipping article with no title: {url}")
+                return None
+
             # Extract tags from query
             tags = [tag.strip() for tag in query.split() if len(tag.strip()) > 2]
 
@@ -413,6 +422,56 @@ class GoogleSearchGroundingTool:
         except Exception as e:
             self.logger.warning(f"Failed to parse grounding chunk: {e}")
             return None
+
+    @staticmethod
+    def extract_title_from_url(url: str) -> str:
+        """
+        Extract a potential title from URL path
+
+        Args:
+            url: Article URL
+
+        Returns:
+            str: Extracted title or empty string
+
+        Example:
+            >>> GoogleSearchGroundingTool.extract_title_from_url(
+            ...     "https://example.com/blog/my-article-title"
+            ... )
+            'My Article Title'
+        """
+        try:
+            from urllib.parse import urlparse, unquote
+
+            parsed = urlparse(url)
+            path = parsed.path.strip('/')
+
+            if not path:
+                return ''
+
+            # Get the last path segment
+            segments = path.split('/')
+            last_segment = segments[-1] if segments else ''
+
+            # Remove file extension if present
+            if '.' in last_segment:
+                last_segment = last_segment.rsplit('.', 1)[0]
+
+            # Convert URL-encoded characters and dashes/underscores to spaces
+            title = unquote(last_segment)
+            title = title.replace('-', ' ').replace('_', ' ')
+
+            # Capitalize words
+            title = title.title()
+
+            # Skip if it looks like an ID or date (too short, all numbers, etc.)
+            if len(title) < 10 or title.replace(' ', '').isdigit():
+                return ''
+
+            return title
+
+        except Exception:
+            return ''
 
     @staticmethod
     def extract_domain(url: str) -> str:
