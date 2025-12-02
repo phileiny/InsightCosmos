@@ -294,8 +294,9 @@ class CuratorDailyRunner:
             >>> articles = runner.fetch_analyzed_articles(max_articles=10)
         """
         try:
+            # Fetch more articles than needed to allow for deduplication
             articles = self.article_store.get_top_priority(
-                limit=max_articles,
+                limit=max_articles * 3,  # Fetch 3x to have buffer for dedup
                 status='analyzed'
             )
 
@@ -328,11 +329,31 @@ class CuratorDailyRunner:
                 # Get priority_reasoning from analysis
                 priority_reasoning = analysis.get('priority_reasoning', '')
 
+                # Get title - prefer analysis summary for google_search_grounding articles
+                # (their original titles are often garbled URL encodings)
+                original_title = article.get('title', 'Untitled')
+                analysis_summary = analysis.get('summary', '')
+
+                # Check if title looks like garbled text (contains many uppercase/numbers pattern)
+                is_garbled = (
+                    len(original_title) > 50 and
+                    original_title.startswith('Auziyq')
+                ) or article.get('source') == 'google_search_grounding'
+
+                # Use analysis summary as title if original is garbled, truncate to first sentence
+                if is_garbled and analysis_summary:
+                    # Take first sentence or first 80 chars
+                    title = analysis_summary.split('。')[0][:80]
+                    if len(analysis_summary) > 80:
+                        title += '...'
+                else:
+                    title = original_title
+
                 processed_article = {
                     'id': article.get('id'),
-                    'title': article.get('title', 'Untitled'),
+                    'title': title,
                     'url': article.get('url', ''),
-                    'summary': article.get('summary', ''),
+                    'summary': analysis_summary or article.get('summary', ''),
                     'key_insights': key_insights,
                     'priority_score': article.get('priority_score', 0.0),
                     'priority_reasoning': priority_reasoning,
@@ -343,11 +364,85 @@ class CuratorDailyRunner:
 
                 processed_articles.append(processed_article)
 
-            return processed_articles
+            # Deduplicate articles with similar content
+            deduplicated = self._deduplicate_articles(processed_articles, max_articles)
+            self.logger.info(f"Deduplicated {len(processed_articles)} -> {len(deduplicated)} articles")
+
+            return deduplicated
 
         except Exception as e:
             self.logger.error(f"Error fetching analyzed articles: {e}")
             return []
+
+    def _deduplicate_articles(
+        self,
+        articles: List[Dict[str, Any]],
+        max_count: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Deduplicate articles based on summary similarity
+
+        Uses simple keyword overlap to detect similar articles.
+        Keeps higher priority article when duplicates found.
+
+        Args:
+            articles: List of processed articles (already sorted by priority)
+            max_count: Maximum number of articles to return
+
+        Returns:
+            List[dict]: Deduplicated article list
+        """
+        if not articles:
+            return []
+
+        deduplicated = []
+        seen_keywords = []  # List of keyword sets for each kept article
+
+        for article in articles:
+            if len(deduplicated) >= max_count:
+                break
+
+            # Extract keywords from summary (use first 150 chars for better dedup)
+            summary = article.get('summary', '')[:150]  # Truncate to focus on core topic
+            title = article.get('title', '')
+            combined_text = f"{title} {summary}".lower()
+
+            # Extract Chinese/English words and significant terms
+            # For Chinese: extract 2-4 character phrases for better matching
+            chinese_phrases = re.findall(r'[\u4e00-\u9fff]{2,4}', combined_text)
+            english_words = re.findall(r'[A-Za-z]{3,}', combined_text)
+            keywords = set(chinese_phrases + english_words)
+
+            # Add important domain terms as single keywords for better matching
+            domain_terms = ['vla', 'vlm', 'llm', 'amr', 'agv', 'cobot', 'humanoid',
+                           '機器人', '協作', '自主', '導航', '視覺', '語言', '動作']
+            for term in domain_terms:
+                if term in combined_text:
+                    keywords.add(f"__domain_{term}")  # Prefix to give more weight
+
+            # Check similarity with already selected articles
+            is_duplicate = False
+            for seen in seen_keywords:
+                if len(keywords) > 0 and len(seen) > 0:
+                    # Calculate Jaccard similarity
+                    intersection = len(keywords & seen)
+                    union = len(keywords | seen)
+                    similarity = intersection / union if union > 0 else 0
+
+                    # If > 35% similar, consider as duplicate (lowered from 40%)
+                    if similarity > 0.35:
+                        is_duplicate = True
+                        self.logger.info(
+                            f"Skipping duplicate article: {article.get('id')} - "
+                            f"{article.get('title', '')[:40]}... (similarity: {similarity:.2f})"
+                        )
+                        break
+
+            if not is_duplicate:
+                deduplicated.append(article)
+                seen_keywords.append(keywords)
+
+        return deduplicated
 
     def generate_digest(
         self,

@@ -11,6 +11,7 @@ LOG_DIR="${PROJECT_DIR}/docs/optimization"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 DATE_DISPLAY=$(date +"%Y-%m-%d %H:%M")
 LOG_FILE="${LOG_DIR}/daily_run_${TIMESTAMP}.log"
+TIMEOUT_SECONDS=1800  # 30 分鐘超時，避免進程卡住影響下次排程
 
 # 切換到專案目錄
 cd "${PROJECT_DIR}"
@@ -27,9 +28,27 @@ echo "=============================================" | tee -a "${LOG_FILE}"
 # 記錄開始時間
 START_TIME=$(date +%s)
 
-# 執行 Pipeline 並捕獲輸出
-python -m src.orchestrator.daily_runner 2>&1 | tee -a "${LOG_FILE}"
+# 執行 Pipeline 並捕獲輸出（使用 Python 內建 timeout）
+python -c "
+import subprocess
+import sys
+try:
+    result = subprocess.run(
+        [sys.executable, '-m', 'src.orchestrator.daily_runner'],
+        timeout=${TIMEOUT_SECONDS},
+        check=False
+    )
+    sys.exit(result.returncode)
+except subprocess.TimeoutExpired:
+    print('ERROR: Pipeline 執行超時 (${TIMEOUT_SECONDS} 秒)')
+    sys.exit(124)
+" 2>&1 | tee -a "${LOG_FILE}"
 PIPELINE_EXIT_CODE=${PIPESTATUS[0]}
+
+# 檢查是否超時 (exit code 124 = timeout)
+if [ ${PIPELINE_EXIT_CODE} -eq 124 ]; then
+    echo "Pipeline 已被強制終止" | tee -a "${LOG_FILE}"
+fi
 
 # 計算執行時間
 END_TIME=$(date +%s)

@@ -1,0 +1,148 @@
+{
+  "status": "success",
+  "digest": {
+    "date": "2025-12-02",
+    "total_articles": 10,
+    "top_articles": [
+      {
+        "title": "OVAL-Grasp: Open-Vocabulary Affordance Localization for Task Oriented Grasping",
+        "url": "https://arxiv.org/abs/2511.20841",
+        "summary": "OVAL-Grasp 提出零樣本、開放詞彙方法，整合 LLM 和 VLM 識別物體可操作部分，指導機器人任務導向抓取，在實際測試中展現高成功率。",
+        "key_takeaway": "OVAL-Grasp 整合 LLM/VLM 實現零樣本開放詞彙抓取，大幅提升機器人在複雜環境中的任務導向操作能力。",
+        "priority_score": 0.95,
+        "tags": [
+          "Robotics",
+          "AI",
+          "LLM",
+          "VLM",
+          "Grasping"
+        ]
+      },
+      {
+        "title": "Pudu Robotics推出PUDU T600系列重載工業配送機器人，具備600公斤載重能力與雙形態設計，能適應複雜工業環境...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHHPDrfgvKCkc_8ghjFl71p9KMTwywi02Cenqdsa1Q455KD82VhhDIrNXiL_HtdavCvK6TrIQKeStFMC4XWxdPLjWXzJ-gn8qMoOOq9mZcr5PAepVuaNbN__FVbe0BxNybE1krMzKN-hrEAtcoR0tz5f9eW1fLJ1ImaPylYHbO1iUJKw3gijFcGnemIEUKXHy3pMMed4FU6RbpTY48zoiJtPJ85RsIT1xK-zkQP5ubTcK9eV0q5UzXQEJBeddu8RrVgNu81UrzafQ==",
+        "summary": "Pudu Robotics 推出 PUDU T600 系列重載工業配送機器人，具備 600 公斤載重與雙形態設計，透過 AI 功能實現高效自主物料搬運，並支援 VDA5050 協議。",
+        "key_takeaway": "Pudu T600重載機器人憑藉600公斤載重與AI導航，為製造與倉儲業提供高效自動化物流解決方案。",
+        "priority_score": 0.95,
+        "tags": [
+          "Robotics",
+          "Industrial",
+          "Logistics",
+          "AMR"
+        ]
+      },
+      {
+        "title": "文章探討了製造業中人機協作的未來趨勢，強調將人類的判斷力與機器人的力量、精確度和速度相結合的重要性...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHtwoH1NQ4Dqfu_Ix9W36kQVgs9bm-XN4E2UfFvhjyaZmsJdBhBS4CPBkJx8fswoIgUUykHZ7PG6AdTTG2c9nGsrVdXigg-EtoQYWfSnWiBsPLejdqrFXrKmCf9xlXCj_3U-4LndGW31UnCHoQhOeat8ZvzLGwA8WX3xfW4_axT0VEXKnUjXlnkta2dX7gAi-A=",
+        "summary": "文章探討製造業人機協作趨勢，預計協作機器人市場到 2030 年將達 72 億美元，強調 AI、機器學習與自然語言處理是推動人機團隊發展的關鍵。",
+        "key_takeaway": "製造業人機協作市場預計2030年達72億美元，AI技術是推動協作機器人安全高效運作的關鍵。",
+        "priority_score": 0.95,
+        "tags": [
+          "Robotics",
+          "Cobots",
+          "AI",
+          "Manufacturing"
+        ]
+      },
+      {
+        "title": "這篇文章是對 Vision-Language-Action (VLA) 模型在機器人領域應用的系統性綜述...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFm6Tm6Zras2JvMaQ8g_rzbdRvHSYX5cEEl4hWd_JvUmE7oehAMve6gQomMRs9ISfnjEilDIp41qTY-woe1gRE5GuG9dZxsQN4BK8WoCtiCuwpjsB5HuSA=",
+        "summary": "此綜述系統性回顧了 Vision-Language-Action (VLA) 模型在機器人領域的應用，強調其整合視覺、語言與動作數據以實現多樣化任務泛化能力。",
+        "key_takeaway": "VLA模型綜述強調其透過多模態數據整合，使機器人能泛化應對新任務，無需大量特定數據。",
+        "priority_score": 0.95,
+        "tags": [
+          "AI",
+          "Robotics",
+          "VLA",
+          "Multi-modal"
+        ]
+      },
+      {
+        "title": "OpenVLA 是一款開源的 7B 參數視覺語言行動 (VLA) 模型，旨在透過預訓練於大規模網路視覺語言資料和多樣化機器人示範來改變機器人技能學習...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGtAUKv9IzedICuDh77WWqzcF8sRdw_IjVvzZ0JRYtNWHnwa6RhFA3aNJ3QgdwhMOpm5bVzBc-O_wrsQXg_4DGB0dW2OovL4c3doHnuJYU5Dis-x5oyA9mVNFg=",
+        "summary": "OpenVLA 是一款開源 7B 參數 VLA 模型，經大規模預訓練後，在機器人技能學習上超越參數量大七倍的閉源模型 RT-2-X，並支援消費級 GPU 高效微調。",
+        "key_takeaway": "OpenVLA作為開源7B VLA模型，在多任務機器人學習上超越大型閉源模型，且支援消費級GPU微調。",
+        "priority_score": 0.95,
+        "tags": [
+          "AI",
+          "Robotics",
+          "VLA",
+          "OpenSource",
+          "EmbodiedAI"
+        ]
+      },
+      {
+        "title": "Mantis 提出了一種具備解耦視覺預測（Disentangled Visual Foresight, DVF）的通用視覺-語言-動作 (VLA) 模型，透過結...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFfeFaSPNJyAERjY8TIRdVRmCO7LJjR4evVcboSqcp4-PMhcZ0kH9h_6kMwc9E0i_tLVcbt2nFd51bQiRBjmNv5K3JBUtnWivc0eLqbxBoewKRYYjRnWFa1y90WzRd7U_5vFw==",
+        "summary": "Mantis 提出具備解耦視覺預測（DVF）的通用 VLA 模型，顯著改善動作預測、語言理解與推理能力，並在基準測試中取得 96.7% 高成功率。",
+        "key_takeaway": "Mantis VLA模型引入解耦視覺預測，顯著提升機器人動作預測、語言理解及推理能力，實現高任務成功率。",
+        "priority_score": 0.95,
+        "tags": [
+          "AI",
+          "Robotics",
+          "VLA",
+          "VisualForesight",
+          "EmbodiedAI"
+        ]
+      },
+      {
+        "title": "這篇文章對 Vision-Language-Action (VLA) 模型在機器人領域的應用進行了系統性回顧...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEB5IgHELLHcde0JJjQ6iwrqnwcur1RJDz6jsSVCch0lLcZWPEuZ_BUZAGcMW__cYhH7vzPFpW-EOWhd3D1GrpqEnhYENDjhyxpXYN3zXo_wnCHxLTr2rNL",
+        "summary": "此系統性回顧探討 Vision-Language-Action (VLA) 模型如何透過整合視覺、語言和動作數據，賦能機器人實現廣泛泛化能力，加速實際部署。",
+        "key_takeaway": "此綜述深入探討VLA模型如何統一視覺、語言與動作，賦予機器人解決新型任務的強大泛化能力。",
+        "priority_score": 0.95,
+        "tags": [
+          "AI",
+          "Robotics",
+          "VLA",
+          "Multi-modal"
+        ]
+      },
+      {
+        "title": "這篇文章深入分析了截至 2025 年底 AI 代理框架格局的重大演變，指出市場已從早期混亂走向三大主要框架的整合：LangGraph（用於複雜、生產級別的代理工...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEyL0c9dAL8aF13kZYlV8qJ3X7VWOfMrYNiOyos7T7hbqLgwy_QHiEJFRR80jQzBTEchRxxkOX7vD_VreYda8u2bU9qTYLt5vZMby9xhSbH6y1nVfsR1hs23Hn5mqLJTSXwTJgrgrTOK7BWihPROAHfs3GtM6wvdeX4LcRwozNaSy3pqnLiDGYQGWpqFanLcewbCp-T0eglwdUak9NMKw_5SHIjyakLJQsAWae041RXYk",
+        "summary": "文章分析 2025 年底 AI 代理框架市場格局，指出 LangGraph、CrewAI 和 Microsoft Agent Framework 成三大主流，提供開發者選擇指南。",
+        "key_takeaway": "2025年底AI代理框架市場由LangGraph、CrewAI和Microsoft Agent Framework主導，各有專長，應依需求選擇。",
+        "priority_score": 0.95,
+        "tags": [
+          "AI",
+          "AgentFrameworks",
+          "Multi-Agent Systems",
+          "LLM"
+        ]
+      },
+      {
+        "title": "此文章深入探討了自主移動機器人 (AMRs) 如何在 2030 年主導倉儲物流，以應對勞動力短缺、電子商務激增和供應鏈韌性需求...",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGJVaGDZsJixgVNaQMukxJuSwZ5haKADn0is7emENQRIlCBK6nZ8gXg5vcNk8GDqUxR1I6PWmIOPAaR1dVE-xIWF3rGer-XwD0VEGSAb3yzdg95pQFQi2z_V9AK4VhOtVmUMzvC5OX-Gfq4GamGLcvQuWhIJdLBKMl8P0elU8qm0nDGrb4DWrOkDkRzrhsRBbsf52wGyr4LkZL7S_AJADY8K5uWIL32YctgcQ2OLTTEu5sjG0ehfurQr5HisxC9F0-x3go=",
+        "summary": "文章預測 AMRs 將在 2030 年主導倉儲物流，透過 AI、LiDAR 和 SLAM 實現動態導航與協作，並強調 RaaS 模式和經濟效益。",
+        "key_takeaway": "AMR結合AI、5G與RaaS模式，正加速主導倉儲物流，實現高效協作與顯著經濟效益。",
+        "priority_score": 0.95,
+        "tags": [
+          "Robotics",
+          "AMR",
+          "Logistics",
+          "AI",
+          "RaaS"
+        ]
+      },
+      {
+        "title": "RL without TD learning",
+        "url": "http://bair.berkeley.edu/blog/2025/11/01/rl-without-td-learning/",
+        "summary": "該文介紹 Transitive RL (TRL) 新型離線強化學習演算法，以「分而治之」範式解決傳統 TD 學習在長時序任務中錯誤累積和擴展性問題。",
+        "key_takeaway": "Transitive RL (TRL) 提出「分而治之」新範式，有效解決TD學習在長時序RL任務中的錯誤累積問題。",
+        "priority_score": 0.92,
+        "tags": [
+          "AI",
+          "ReinforcementLearning",
+          "Robotics"
+        ]
+      }
+    ],
+    "daily_insight": "今日情報展現 AI 與 Robotics 領域在「具身智能」與「產業應用」兩大方向的顯著進展。VLA 模型（如 OpenVLA 和 Mantis）透過整合視覺、語言與動作數據，實現機器人在複雜任務中的高度泛化能力，並有開源趨勢。同時，重載 AMR 與協作機器人正加速工業與倉儲自動化，搭配 AI 代理框架的成熟，共同推動智慧系統從研究走向實際部署。",
+    "recommended_action": "建議關注 VLA 模型在機器人操作中的應用實踐，並評估不同 AI 代理框架對多代理系統開發的影響。"
+  },
+  "email_result": {
+    "status": "success",
+    "message": "Email sent to sourcecor103@gmail.com"
+  }
+}

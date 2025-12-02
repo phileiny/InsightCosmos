@@ -54,7 +54,7 @@ class GoogleSearchGroundingTool:
         >>> print(f"Found {len(result['articles'])} articles")
     """
 
-    DEFAULT_MODEL = "gemini-2.0-flash-exp"
+    DEFAULT_MODEL = "gemini-2.5-flash"  # 使用穩定版本
 
     def __init__(
         self,
@@ -114,6 +114,9 @@ class GoogleSearchGroundingTool:
             tools=[{"google_search": {}}]
         )
 
+        # 設定 request timeout（避免 API 呼叫無限等待）
+        self.request_options = {"timeout": self.timeout}
+
         self.logger.info(
             f"GoogleSearchGroundingTool initialized "
             f"(model={model_name}, timeout={timeout}s)"
@@ -155,9 +158,12 @@ class GoogleSearchGroundingTool:
             # Build search prompt
             prompt = self.build_search_prompt(query, max_results, date_restrict, language)
 
-            # Start chat and send search request
+            # Start chat and send search request (with timeout)
             chat = self.model.start_chat()
-            response = chat.send_message(prompt)
+            response = chat.send_message(
+                prompt,
+                request_options=self.request_options
+            )
             searched_at = datetime.now(timezone.utc)
 
             # Extract articles from grounding metadata
