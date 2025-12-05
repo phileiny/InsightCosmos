@@ -333,20 +333,36 @@ class ArticleStore:
     def get_top_priority(
         self,
         limit: int = 10,
-        status: Optional[str] = None
+        status: Optional[str] = None,
+        fetched_after: Optional[datetime] = None,
+        fetched_before: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
-        Get top priority articles
+        Get top priority articles with optional time filtering
 
         Args:
             limit: Maximum number of results (default: 10)
             status: Filter by status (optional)
+            fetched_after: Only include articles fetched AFTER this time (exclusive)
+            fetched_before: Only include articles fetched BEFORE or AT this time (inclusive)
 
         Returns:
             List[dict]: List of articles ordered by priority score (descending)
 
         Example:
-            >>> top_articles = store.get_top_priority(limit=5, status="analyzed")
+            >>> # Get all high priority articles (backward compatible)
+            >>> articles = store.get_top_priority(limit=10, status='analyzed')
+
+            >>> # Get articles within a specific time range (new usage)
+            >>> from datetime import datetime, timedelta
+            >>> period_start = datetime.utcnow() - timedelta(days=1)
+            >>> period_end = datetime.utcnow()
+            >>> articles = store.get_top_priority(
+            ...     limit=30,
+            ...     status='analyzed',
+            ...     fetched_after=period_start,
+            ...     fetched_before=period_end
+            ... )
         """
         try:
             with self.database.get_session() as session:
@@ -354,13 +370,30 @@ class ArticleStore:
                     Article.priority_score.isnot(None)
                 )
 
+                # Status filter
                 if status:
                     query = query.filter(Article.status == status)
 
+                # Time range filter (new)
+                if fetched_after is not None:
+                    query = query.filter(Article.fetched_at > fetched_after)
+                    self.logger.debug(f"Filtering articles fetched after: {fetched_after}")
+
+                if fetched_before is not None:
+                    query = query.filter(Article.fetched_at <= fetched_before)
+                    self.logger.debug(f"Filtering articles fetched before: {fetched_before}")
+
+                # Order and limit
                 query = query.order_by(desc(Article.priority_score))
                 query = query.limit(limit)
 
                 articles = query.all()
+
+                self.logger.info(
+                    f"get_top_priority: found {len(articles)} articles "
+                    f"(limit={limit}, status={status}, "
+                    f"after={fetched_after}, before={fetched_before})"
+                )
 
                 return [article.to_dict() for article in articles]
 

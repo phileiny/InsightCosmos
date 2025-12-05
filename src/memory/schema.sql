@@ -77,13 +77,15 @@ CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings(model);
 -- ========================================
 -- Table 3: daily_reports
 -- ========================================
--- Description: Stores daily digest reports
+-- Description: Stores daily digest reports with time period tracking
 -- Primary Key: id (auto-increment)
 -- Unique Constraint: report_date (one report per day)
 
 CREATE TABLE IF NOT EXISTS daily_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     report_date DATE UNIQUE NOT NULL,
+    period_start DATETIME NOT NULL,   -- 文章收集起始時間
+    period_end DATETIME NOT NULL,     -- 文章收集結束時間
     article_count INTEGER NOT NULL,
     top_articles TEXT NOT NULL,  -- JSON array of article IDs
     content TEXT NOT NULL,        -- Report content in Markdown format
@@ -93,6 +95,7 @@ CREATE TABLE IF NOT EXISTS daily_reports (
 
 -- Indexes for daily_reports table
 CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON daily_reports(report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_reports_period ON daily_reports(period_end DESC);
 
 
 -- ========================================

@@ -32,6 +32,7 @@ from src.memory.database import Database
 from src.memory.models import Article, Embedding, DailyReport, WeeklyReport, Base
 from src.memory.article_store import ArticleStore
 from src.memory.embedding_store import EmbeddingStore
+from src.memory.report_store import ReportStore
 
 __all__ = [
     'Database',
@@ -42,6 +43,7 @@ __all__ = [
     'Base',
     'ArticleStore',
     'EmbeddingStore',
+    'ReportStore',
 ]
 
 __version__ = '1.0.0'

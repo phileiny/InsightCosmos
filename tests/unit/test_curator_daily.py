@@ -20,13 +20,14 @@ Unit Tests for Curator Daily Agent
 import pytest
 import json
 from unittest.mock import Mock, patch, MagicMock
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from src.agents.curator_daily import (
     create_curator_agent,
     CuratorDailyRunner,
     generate_daily_digest,
-    _load_prompt_template
+    _load_prompt_template,
+    DEFAULT_FIRST_RUN_DAYS
 )
 from src.utils.config import Config
 from src.memory.article_store import ArticleStore
@@ -102,6 +103,8 @@ class TestCuratorDailyRunner:
     def mock_article_store(self):
         """建立 Mock ArticleStore"""
         store = Mock(spec=ArticleStore)
+        # Add mock database for ReportStore initialization
+        store.database = Mock()
         return store
 
     @pytest.fixture
@@ -203,11 +206,14 @@ class TestCuratorDailyRunner:
         assert articles[0]['tags'] == ["AI", "LLM"]  # 字串被轉為陣列
         assert articles[1]['tags'] == ["Robotics", "Manipulation"]
 
-        # 驗證 mock 被調用
-        mock_article_store.get_top_priority.assert_called_once_with(
-            limit=10,
-            status='analyzed'
-        )
+        # 驗證 mock 被調用 (新版本傳入時間過濾參數)
+        mock_article_store.get_top_priority.assert_called_once()
+        call_kwargs = mock_article_store.get_top_priority.call_args[1]
+        assert call_kwargs['limit'] == 30  # 內部使用 30，後續再切到 max_articles
+        assert call_kwargs['status'] == 'analyzed'
+        # 時間過濾參數應存在（可為 None）
+        assert 'fetched_after' in call_kwargs
+        assert 'fetched_before' in call_kwargs
 
     def test_fetch_analyzed_articles_empty(self, mock_config, mock_article_store):
         """測試取得空文章列表"""
@@ -387,7 +393,7 @@ class TestCuratorDailyRunner:
         mock_config,
         mock_article_store
     ):
-        """測試無文章時的處理"""
+        """測試無文章時的處理 (新行為: 返回 skip 狀態)"""
         # Mock ArticleStore 返回空列表
         mock_article_store.get_top_priority.return_value = []
 
@@ -403,9 +409,11 @@ class TestCuratorDailyRunner:
             max_articles=10
         )
 
-        # 驗證錯誤處理
-        assert result['status'] == 'error'
-        assert 'No analyzed articles available' in result['error']
+        # 新行為: 返回 'skip' 狀態而非 'error' (Phase 4 時間過濾功能)
+        assert result['status'] == 'skip'
+        assert 'No new articles' in result['message']
+        assert 'period_start' in result
+        assert 'period_end' in result
 
     def test_generate_and_send_digest_llm_failure(
         self,
@@ -501,12 +509,13 @@ class TestConvenienceFunction:
             "daily_insight": "Test insight."
         }
 
-        # Mock Database and ArticleStore
-        with patch('src.agents.curator_daily.Database') as mock_db_class:
-            with patch('src.agents.curator_daily.ArticleStore') as mock_store_class:
+        # Mock Database and ArticleStore (內部 inline import)
+        with patch('src.memory.database.Database') as mock_db_class:
+            with patch('src.memory.article_store.ArticleStore') as mock_store_class:
                 # Mock instances
                 mock_db = Mock()
                 mock_store = Mock()
+                mock_store.database = mock_db  # Add database for ReportStore
                 mock_db_class.from_config.return_value = mock_db
                 mock_store_class.return_value = mock_store
 
@@ -526,25 +535,31 @@ class TestConvenienceFunction:
                     }
                 ]
 
-                # Mock LLM and EmailSender
-                with patch('src.agents.curator_daily.CuratorDailyRunner') as mock_runner_class:
-                    mock_runner = Mock()
-                    mock_runner_class.return_value = mock_runner
-                    mock_runner.generate_and_send_digest.return_value = {
-                        "status": "success",
-                        "digest": sample_digest
-                    }
+                # Mock ReportStore to avoid database access
+                with patch('src.agents.curator_daily.ReportStore') as mock_report_store_class:
+                    mock_report_store = Mock()
+                    mock_report_store_class.return_value = mock_report_store
+                    mock_report_store.get_last_daily_report.return_value = None
 
-                    # 執行
-                    result = generate_daily_digest(
-                        config=mock_config,
-                        recipient_email="ray@example.com",
-                        max_articles=10
-                    )
+                    # Mock LLM and EmailSender
+                    with patch('src.agents.curator_daily.CuratorDailyRunner') as mock_runner_class:
+                        mock_runner = Mock()
+                        mock_runner_class.return_value = mock_runner
+                        mock_runner.generate_and_send_digest.return_value = {
+                            "status": "success",
+                            "digest": sample_digest
+                        }
 
-                    # 驗證
-                    assert result['status'] == 'success'
-                    assert 'digest' in result
+                        # 執行
+                        result = generate_daily_digest(
+                            config=mock_config,
+                            recipient_email="ray@example.com",
+                            max_articles=10
+                        )
+
+                        # 驗證
+                        assert result['status'] == 'success'
+                        assert 'digest' in result
 
 
 def test_module_imports():
@@ -558,3 +573,226 @@ def test_module_imports():
     assert create_curator_agent is not None
     assert CuratorDailyRunner is not None
     assert generate_daily_digest is not None
+
+
+# ========================================
+# Time Filter Tests (Phase 4)
+# ========================================
+
+class TestCuratorTimeFilter:
+    """Test time-based filtering functionality"""
+
+    @pytest.fixture
+    def mock_config(self):
+        return Config(
+            google_api_key="test_api_key",
+            user_name="Ray",
+            user_interests="AI, Robotics",
+            database_path=":memory:",
+            email_account="test@example.com",
+            email_password="test_password",
+            smtp_host="smtp.gmail.com",
+            smtp_port=587,
+            smtp_use_tls=True
+        )
+
+    @pytest.fixture
+    def mock_article_store(self):
+        """Build Mock ArticleStore with database attribute"""
+        store = Mock(spec=ArticleStore)
+        store.database = Mock()
+        return store
+
+    def test_first_run_uses_30_days(self, mock_config, mock_article_store):
+        """
+        TC-CUR-01: Test first run uses 30 days as default period
+
+        Expected:
+        - When no previous report exists, period_start is 30 days before period_end
+        """
+        agent = create_curator_agent(mock_config)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = None
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+            period_start, period_end = runner._determine_time_period()
+
+            # Verify: period_start should be ~30 days before period_end
+            expected_start = period_end - timedelta(days=DEFAULT_FIRST_RUN_DAYS)
+            assert abs((period_start - expected_start).total_seconds()) < 1
+
+    def test_subsequent_run_uses_last_period_end(self, mock_config, mock_article_store):
+        """
+        TC-CUR-02: Test subsequent run uses last report's period_end
+
+        Expected:
+        - period_start equals the previous report's period_end
+        """
+        agent = create_curator_agent(mock_config)
+        last_period_end = datetime(2025, 12, 4, 8, 0, 0)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = {
+                'period_end': last_period_end.isoformat()
+            }
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+            period_start, period_end = runner._determine_time_period()
+
+            # Verify: period_start should equal last period_end
+            assert period_start == last_period_end
+
+    def test_no_articles_returns_skip(self, mock_config, mock_article_store):
+        """
+        TC-CUR-03: Test returns skip status when no articles in time range
+
+        Expected:
+        - status is 'skip'
+        - message indicates no new articles
+        """
+        mock_article_store.get_top_priority.return_value = []
+
+        agent = create_curator_agent(mock_config)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = None
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+            result = runner.generate_and_send_digest("test@example.com")
+
+            assert result['status'] == 'skip'
+            assert 'No new articles' in result.get('message', '')
+            assert 'period_start' in result
+            assert 'period_end' in result
+
+    def test_saves_report_on_success(self, mock_config, mock_article_store):
+        """
+        TC-CUR-04: Test saves report record after successful email send
+
+        Expected:
+        - create_daily_report is called after email success
+        """
+        mock_article_store.get_top_priority.return_value = [
+            {
+                'id': 1,
+                'title': 'Test Article',
+                'url': 'http://test.com',
+                'summary': 'Test summary',
+                'analysis': {},
+                'tags': 'AI',
+                'priority_score': 0.9,
+                'source_name': 'Test'
+            }
+        ]
+
+        agent = create_curator_agent(mock_config)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = None
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+
+            sample_digest = {
+                'date': '2025-12-05',
+                'top_articles': [],
+                'daily_insight': 'Test insight'
+            }
+
+            with patch.object(runner, '_invoke_llm', return_value=json.dumps(sample_digest)):
+                with patch.object(runner.email_sender, 'send') as mock_send:
+                    mock_send.return_value = {'status': 'success'}
+
+                    result = runner.generate_and_send_digest("test@example.com")
+
+                    assert result['status'] == 'success'
+                    # Verify create_daily_report was called
+                    assert mock_report_store.create_daily_report.called
+
+    def test_does_not_save_report_on_email_failure(self, mock_config, mock_article_store):
+        """
+        TC-CUR-05: Test does not save report when email fails
+
+        Expected:
+        - create_daily_report is NOT called when email fails
+        """
+        mock_article_store.get_top_priority.return_value = [
+            {
+                'id': 1,
+                'title': 'Test Article',
+                'url': 'http://test.com',
+                'summary': 'Test summary',
+                'analysis': {},
+                'tags': 'AI',
+                'priority_score': 0.9,
+                'source_name': 'Test'
+            }
+        ]
+
+        agent = create_curator_agent(mock_config)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = None
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+
+            sample_digest = {
+                'date': '2025-12-05',
+                'top_articles': [],
+                'daily_insight': 'Test insight'
+            }
+
+            with patch.object(runner, '_invoke_llm', return_value=json.dumps(sample_digest)):
+                with patch.object(runner.email_sender, 'send') as mock_send:
+                    mock_send.return_value = {'status': 'error', 'error': 'SMTP failed'}
+
+                    result = runner.generate_and_send_digest("test@example.com")
+
+                    assert result['status'] == 'error'
+                    # Verify create_daily_report was NOT called
+                    assert not mock_report_store.create_daily_report.called
+
+    def test_fetch_articles_with_time_params(self, mock_config, mock_article_store):
+        """
+        TC-CUR-06: Test fetch_analyzed_articles passes time parameters
+
+        Expected:
+        - get_top_priority is called with fetched_after and fetched_before
+        """
+        mock_article_store.get_top_priority.return_value = []
+
+        agent = create_curator_agent(mock_config)
+
+        with patch('src.agents.curator_daily.ReportStore') as MockReportStore:
+            mock_report_store = Mock()
+            mock_report_store.get_last_daily_report.return_value = None
+            MockReportStore.return_value = mock_report_store
+
+            runner = CuratorDailyRunner(agent, mock_article_store, mock_config)
+
+            period_start = datetime(2025, 12, 4, 8, 0)
+            period_end = datetime(2025, 12, 5, 8, 0)
+
+            runner.fetch_analyzed_articles(
+                max_articles=10,
+                fetched_after=period_start,
+                fetched_before=period_end
+            )
+
+            # Verify get_top_priority was called with time params
+            mock_article_store.get_top_priority.assert_called_once_with(
+                limit=30,  # 10 * 3
+                status='analyzed',
+                fetched_after=period_start,
+                fetched_before=period_end
+            )

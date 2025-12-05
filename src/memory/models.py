@@ -184,11 +184,13 @@ class DailyReport(Base):
     """
     Daily Report ORM model
 
-    Represents a daily digest report.
+    Represents a daily digest report with time period tracking.
 
     Attributes:
         id (int): Primary key
         report_date (datetime): Report date (unique)
+        period_start (datetime): Article collection start time
+        period_end (datetime): Article collection end time
         article_count (int): Number of articles included
         top_articles (str): JSON array of article IDs
         content (str): Report content in Markdown format
@@ -199,6 +201,8 @@ class DailyReport(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     report_date = Column(DateTime, unique=True, nullable=False, index=True)
+    period_start = Column(DateTime, nullable=True)  # 文章收集起始時間
+    period_end = Column(DateTime, nullable=True)    # 文章收集結束時間
     article_count = Column(Integer, nullable=False)
     top_articles = Column(Text, nullable=False)  # JSON array
     content = Column(Text, nullable=False)
@@ -215,6 +219,8 @@ class DailyReport(Base):
         return {
             'id': self.id,
             'report_date': self.report_date.isoformat() if self.report_date else None,
+            'period_start': self.period_start.isoformat() if self.period_start else None,
+            'period_end': self.period_end.isoformat() if self.period_end else None,
             'article_count': self.article_count,
             'top_articles': json.loads(self.top_articles) if self.top_articles else [],
             'content': self.content,
@@ -224,7 +230,11 @@ class DailyReport(Base):
 
     def __repr__(self) -> str:
         """String representation"""
-        return f"<DailyReport(id={self.id}, date='{self.report_date}', articles={self.article_count})>"
+        return (
+            f"<DailyReport(id={self.id}, date='{self.report_date}', "
+            f"period={self.period_start} to {self.period_end}, "
+            f"articles={self.article_count})>"
+        )
 
 
 class WeeklyReport(Base):

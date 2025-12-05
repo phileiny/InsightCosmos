@@ -32,7 +32,7 @@ import tempfile
 import shutil
 
 from src.utils.config import Config
-from src.memory import Database, ArticleStore, EmbeddingStore, Article
+from src.memory import Database, ArticleStore, EmbeddingStore, ReportStore, Article
 
 
 @pytest.fixture(scope='function')
@@ -605,3 +605,437 @@ def test_cascade_delete(article_store, embedding_store, database):
 
     # Embedding should be automatically deleted
     assert embedding_store.exists(article_id, model="test-model") is False
+
+
+# ========================================
+# TC-2-13: DailyReport Period Columns
+# ========================================
+
+def test_daily_report_has_period_columns():
+    """
+    TC-2-13: Test DailyReport model has period_start and period_end columns
+
+    Expected:
+    - DailyReport has period_start attribute
+    - DailyReport has period_end attribute
+    """
+    from src.memory.models import DailyReport
+
+    assert hasattr(DailyReport, 'period_start')
+    assert hasattr(DailyReport, 'period_end')
+
+
+def test_daily_report_to_dict_includes_period():
+    """
+    TC-2-14: Test DailyReport.to_dict() includes period columns
+
+    Expected:
+    - to_dict() returns period_start
+    - to_dict() returns period_end
+    - Values are correctly formatted as ISO strings
+    """
+    from src.memory.models import DailyReport
+
+    report = DailyReport(
+        report_date=datetime(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles='[1,2,3]',
+        content='{}'
+    )
+
+    result = report.to_dict()
+
+    assert 'period_start' in result
+    assert 'period_end' in result
+    assert result['period_start'] == '2025-12-04T08:00:00'
+    assert result['period_end'] == '2025-12-05T08:00:00'
+
+
+def test_daily_report_period_nullable():
+    """
+    TC-2-15: Test DailyReport period columns are nullable for backward compatibility
+
+    Expected:
+    - DailyReport can be created without period_start/period_end
+    - to_dict() returns None for missing period values
+    """
+    from src.memory.models import DailyReport
+
+    # Create report without period columns (backward compatibility)
+    report = DailyReport(
+        report_date=datetime(2025, 12, 5),
+        article_count=10,
+        top_articles='[1,2,3]',
+        content='{}'
+    )
+
+    result = report.to_dict()
+
+    assert result['period_start'] is None
+    assert result['period_end'] is None
+
+
+def test_daily_report_repr():
+    """
+    TC-2-16: Test DailyReport __repr__ includes period info
+
+    Expected:
+    - String representation includes period information
+    """
+    from src.memory.models import DailyReport
+
+    report = DailyReport(
+        id=1,
+        report_date=datetime(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles='[1,2,3]',
+        content='{}'
+    )
+
+    repr_str = repr(report)
+
+    assert 'period=' in repr_str
+    assert '2025-12-04' in repr_str
+    assert '2025-12-05' in repr_str
+
+
+# ========================================
+# TC-2-17 ~ TC-2-22: ReportStore Tests
+# ========================================
+
+@pytest.fixture(scope='function')
+def report_store(database):
+    """Create ReportStore instance"""
+    return ReportStore(database)
+
+
+def test_report_store_get_last_empty(report_store):
+    """
+    TC-2-17: Test get_last_daily_report returns None when no reports exist
+
+    Expected:
+    - Returns None for empty database
+    """
+    result = report_store.get_last_daily_report()
+    assert result is None
+
+
+def test_report_store_create_daily_report(report_store):
+    """
+    TC-2-18: Test creating a daily report
+
+    Expected:
+    - Report ID is returned
+    - Report can be retrieved by date
+    """
+    from datetime import date as dt_date
+
+    report_id = report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles=[1, 2, 3],
+        content='{"test": true}'
+    )
+
+    assert report_id > 0
+
+    # Verify can retrieve by date
+    report = report_store.get_daily_report_by_date(dt_date(2025, 12, 5))
+    assert report is not None
+    assert report['article_count'] == 10
+
+
+def test_report_store_get_last_after_create(report_store):
+    """
+    TC-2-19: Test get_last_daily_report after creating a report
+
+    Expected:
+    - Returns the created report
+    - period_end is correctly formatted
+    """
+    from datetime import date as dt_date
+
+    report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles=[1, 2, 3],
+        content='{}'
+    )
+
+    result = report_store.get_last_daily_report()
+
+    assert result is not None
+    assert result['article_count'] == 10
+    assert result['period_end'] == '2025-12-05T08:00:00'
+
+
+def test_report_store_duplicate_date_updates(report_store):
+    """
+    TC-2-20: Test creating report with duplicate date updates existing
+
+    Expected:
+    - Same ID is returned
+    - Data is updated
+    """
+    from datetime import date as dt_date
+
+    # First creation
+    id1 = report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles=[1, 2, 3],
+        content='{}'
+    )
+
+    # Second creation with same date
+    id2 = report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 10, 0),  # Different time
+        article_count=15,  # Different count
+        top_articles=[1, 2, 3, 4, 5],
+        content='{}'
+    )
+
+    assert id1 == id2  # Same record
+
+    # Verify updated
+    report = report_store.get_daily_report_by_date(dt_date(2025, 12, 5))
+    assert report['article_count'] == 15
+
+
+def test_report_store_get_last_returns_most_recent(report_store):
+    """
+    TC-2-21: Test get_last_daily_report returns most recent report
+
+    Expected:
+    - Returns the newest report by created_at
+    """
+    from datetime import date as dt_date
+    import time
+
+    # Create older report
+    report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 3),
+        period_start=datetime(2025, 12, 2),
+        period_end=datetime(2025, 12, 3),
+        article_count=5,
+        top_articles=[1],
+        content='{}'
+    )
+
+    # Small delay to ensure different created_at
+    time.sleep(0.1)
+
+    # Create newer report
+    report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4),
+        period_end=datetime(2025, 12, 5),
+        article_count=10,
+        top_articles=[2],
+        content='{}'
+    )
+
+    # Get last should return newer one
+    result = report_store.get_last_daily_report()
+
+    assert result['article_count'] == 10
+
+
+def test_report_store_update_sent_at(report_store):
+    """
+    TC-2-22: Test updating sent_at timestamp
+
+    Expected:
+    - sent_at is updated
+    """
+    from datetime import date as dt_date
+
+    report_id = report_store.create_daily_report(
+        report_date=dt_date(2025, 12, 5),
+        period_start=datetime(2025, 12, 4, 8, 0),
+        period_end=datetime(2025, 12, 5, 8, 0),
+        article_count=10,
+        top_articles=[1, 2, 3],
+        content='{}'
+    )
+
+    # Update sent_at
+    sent_time = datetime(2025, 12, 5, 9, 0)
+    success = report_store.update_sent_at(report_id, sent_time)
+
+    assert success is True
+
+    # Verify
+    report = report_store.get_daily_report_by_date(dt_date(2025, 12, 5))
+    assert report['sent_at'] == '2025-12-05T09:00:00'
+
+
+# ========================================
+# TC-2-23 ~ TC-2-28: ArticleStore Time Filter Tests
+# ========================================
+
+@pytest.fixture(scope='function')
+def article_store_with_time_data(database):
+    """Create ArticleStore with articles at different fetched_at times"""
+    store = ArticleStore(database)
+    now = datetime.utcnow()
+
+    # 3 days ago article
+    id1 = store.create(
+        url="https://example.com/old",
+        title="Old Article",
+        source="test"
+    )
+    store.update(id1, fetched_at=now - timedelta(days=3), priority_score=0.9, status='analyzed')
+
+    # 1 day ago article
+    id2 = store.create(
+        url="https://example.com/recent",
+        title="Recent Article",
+        source="test"
+    )
+    store.update(id2, fetched_at=now - timedelta(days=1), priority_score=0.8, status='analyzed')
+
+    # Today article
+    id3 = store.create(
+        url="https://example.com/today",
+        title="Today Article",
+        source="test"
+    )
+    store.update(id3, fetched_at=now, priority_score=0.7, status='analyzed')
+
+    return store, now
+
+
+def test_get_top_priority_backward_compatible(article_store_with_time_data):
+    """
+    TC-2-23: Test get_top_priority without time params returns all articles (backward compatible)
+
+    Expected:
+    - Returns all analyzed articles when no time filter provided
+    """
+    store, _ = article_store_with_time_data
+
+    articles = store.get_top_priority(limit=10, status='analyzed')
+
+    assert len(articles) == 3
+
+
+def test_get_top_priority_fetched_after_filter(article_store_with_time_data):
+    """
+    TC-2-24: Test fetched_after filter excludes older articles
+
+    Expected:
+    - Only returns articles fetched after the cutoff time
+    """
+    store, now = article_store_with_time_data
+
+    # Only get articles from last 2 days
+    cutoff = now - timedelta(days=2)
+    articles = store.get_top_priority(
+        limit=10,
+        status='analyzed',
+        fetched_after=cutoff
+    )
+
+    assert len(articles) == 2
+    # Should not include the 3-day old article
+    urls = [a['url'] for a in articles]
+    assert 'https://example.com/old' not in urls
+
+
+def test_get_top_priority_fetched_before_filter(article_store_with_time_data):
+    """
+    TC-2-25: Test fetched_before filter excludes newer articles
+
+    Expected:
+    - Only returns articles fetched before or at the cutoff time
+    """
+    store, now = article_store_with_time_data
+
+    # Only get articles from before 2 days ago
+    cutoff = now - timedelta(days=2)
+    articles = store.get_top_priority(
+        limit=10,
+        status='analyzed',
+        fetched_before=cutoff
+    )
+
+    assert len(articles) == 1
+    assert articles[0]['url'] == 'https://example.com/old'
+
+
+def test_get_top_priority_combined_filter(article_store_with_time_data):
+    """
+    TC-2-26: Test combined fetched_after and fetched_before filter
+
+    Expected:
+    - Returns articles within the specified time range
+    """
+    store, now = article_store_with_time_data
+
+    # Get articles between 2 days ago and 12 hours ago
+    after = now - timedelta(days=2)
+    before = now - timedelta(hours=12)
+
+    articles = store.get_top_priority(
+        limit=10,
+        status='analyzed',
+        fetched_after=after,
+        fetched_before=before
+    )
+
+    assert len(articles) == 1
+    assert articles[0]['url'] == 'https://example.com/recent'
+
+
+def test_get_top_priority_empty_result(article_store_with_time_data):
+    """
+    TC-2-27: Test returns empty list when no articles match time filter
+
+    Expected:
+    - Returns empty list for future time filter
+    """
+    store, now = article_store_with_time_data
+
+    # Future time - no articles should match
+    future = now + timedelta(days=1)
+    articles = store.get_top_priority(
+        limit=10,
+        status='analyzed',
+        fetched_after=future
+    )
+
+    assert len(articles) == 0
+
+
+def test_get_top_priority_order_preserved(article_store_with_time_data):
+    """
+    TC-2-28: Test articles still ordered by priority_score with time filter
+
+    Expected:
+    - Results are ordered by priority_score descending
+    """
+    store, now = article_store_with_time_data
+
+    articles = store.get_top_priority(
+        limit=10,
+        status='analyzed',
+        fetched_after=now - timedelta(days=2)
+    )
+
+    # Should be sorted by priority_score descending
+    scores = [a['priority_score'] for a in articles]
+    assert scores == sorted(scores, reverse=True)

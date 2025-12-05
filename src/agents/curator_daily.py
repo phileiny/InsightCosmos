@@ -51,16 +51,20 @@ Usage:
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import json
 import re
 
 from google.adk.agents import LlmAgent
+
+# 首次執行預設取 30 天內的文章
+DEFAULT_FIRST_RUN_DAYS = 30
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai.types import Content, Part
 
 from src.memory.article_store import ArticleStore
+from src.memory.report_store import ReportStore
 from src.tools.email_sender import EmailSender, EmailConfig
 from src.tools.digest_formatter import DigestFormatter
 from src.utils.config import Config
@@ -177,6 +181,9 @@ class CuratorDailyRunner:
             session_service=self.session_service
         )
 
+        # Initialize ReportStore for time-based filtering
+        self.report_store = ReportStore(self.article_store.database)
+
     def _create_email_sender(self) -> EmailSender:
         """Create EmailSender from config"""
         email_config = EmailConfig(
@@ -197,6 +204,9 @@ class CuratorDailyRunner:
         """
         Generate daily digest and send via email
 
+        Uses time-based filtering to only include articles collected since
+        the last digest was generated.
+
         Args:
             recipient_email: Recipient email address
             max_articles: Maximum number of articles to include (default: 10)
@@ -204,10 +214,12 @@ class CuratorDailyRunner:
 
         Returns:
             dict: {
-                "status": "success" | "error",
+                "status": "success" | "error" | "skip",
                 "digest": dict (if success),
                 "email_result": dict (if success),
-                "error": str (if error)
+                "error": str (if error),
+                "period_start": str,
+                "period_end": str
             }
 
         Example:
@@ -217,15 +229,30 @@ class CuratorDailyRunner:
             ... )
         """
         try:
-            # Step 1: Fetch analyzed articles
+            # Step 0: Determine time period for article collection
+            period_start, period_end = self._determine_time_period()
+
+            self.logger.info(
+                f"Generating digest for period: {period_start} to {period_end}"
+            )
+
+            # Step 1: Fetch analyzed articles with time filtering
             self.logger.info(f"Fetching top {max_articles} analyzed articles...")
-            articles = self.fetch_analyzed_articles(max_articles)
+            articles = self.fetch_analyzed_articles(
+                max_articles=max_articles,
+                fetched_after=period_start,
+                fetched_before=period_end
+            )
 
             if not articles:
-                self.logger.warning("No analyzed articles found")
+                self.logger.warning(
+                    f"No new articles found between {period_start} and {period_end}"
+                )
                 return {
-                    "status": "error",
-                    "error": "No analyzed articles available for digest"
+                    "status": "skip",
+                    "message": "No new articles in the specified time range",
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat()
                 }
 
             self.logger.info(f"Fetched {len(articles)} articles")
@@ -238,7 +265,9 @@ class CuratorDailyRunner:
                 self.logger.error("Failed to generate digest")
                 return {
                     "status": "error",
-                    "error": "LLM failed to generate valid digest"
+                    "error": "LLM failed to generate valid digest",
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat()
                 }
 
             self.logger.info("Digest generated successfully")
@@ -259,10 +288,22 @@ class CuratorDailyRunner:
 
             if email_result['status'] == 'success':
                 self.logger.info("✅ Daily digest sent successfully")
+
+                # Save daily report record
+                self._save_daily_report(
+                    report_date=digest_date or date.today(),
+                    period_start=period_start,
+                    period_end=period_end,
+                    articles=articles,
+                    digest=digest
+                )
+
                 return {
                     "status": "success",
                     "digest": digest,
-                    "email_result": email_result
+                    "email_result": email_result,
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat()
                 }
             else:
                 self.logger.error(f"Failed to send email: {email_result.get('error')}")
@@ -270,7 +311,9 @@ class CuratorDailyRunner:
                     "status": "error",
                     "error": f"Email sending failed: {email_result.get('error')}",
                     "digest": digest,
-                    "email_result": email_result
+                    "email_result": email_result,
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat()
                 }
 
         except Exception as e:
@@ -280,12 +323,91 @@ class CuratorDailyRunner:
                 "error": str(e)
             }
 
-    def fetch_analyzed_articles(self, max_articles: int = 10) -> List[Dict[str, Any]]:
+    def _determine_time_period(self) -> tuple:
+        """
+        Determine the time period for article collection
+
+        Returns:
+            tuple: (period_start, period_end) as datetime objects
+
+        Logic:
+            - If previous report exists: start from its period_end
+            - If no previous report: start from 30 days ago (first run)
+        """
+        period_end = datetime.utcnow()
+
+        # Query last daily report
+        last_report = self.report_store.get_last_daily_report()
+
+        if last_report and last_report.get('period_end'):
+            # Has previous report -> start from its period_end
+            period_end_str = last_report['period_end']
+            period_start = datetime.fromisoformat(period_end_str)
+            self.logger.info(f"Found last report, starting from: {period_start}")
+        else:
+            # First run -> use last 30 days
+            period_start = period_end - timedelta(days=DEFAULT_FIRST_RUN_DAYS)
+            self.logger.info(
+                f"No previous report found, using last {DEFAULT_FIRST_RUN_DAYS} days: "
+                f"{period_start}"
+            )
+
+        return period_start, period_end
+
+    def _save_daily_report(
+        self,
+        report_date: date,
+        period_start: datetime,
+        period_end: datetime,
+        articles: List[Dict[str, Any]],
+        digest: Dict[str, Any]
+    ) -> None:
+        """
+        Save daily report record to database
+
+        Args:
+            report_date: Report date
+            period_start: Article collection start time
+            period_end: Article collection end time
+            articles: List of articles included
+            digest: Generated digest content
+        """
+        try:
+            article_ids = [a.get('id') for a in articles if a.get('id')]
+
+            self.report_store.create_daily_report(
+                report_date=report_date,
+                period_start=period_start,
+                period_end=period_end,
+                article_count=len(articles),
+                top_articles=article_ids,
+                content=json.dumps(digest, ensure_ascii=False),
+                sent_at=datetime.utcnow()
+            )
+
+            self.logger.info(
+                f"Saved daily report: date={report_date}, "
+                f"period={period_start} to {period_end}, "
+                f"articles={len(articles)}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to save daily report: {e}")
+            # Don't raise exception to avoid affecting already sent email
+
+    def fetch_analyzed_articles(
+        self,
+        max_articles: int = 10,
+        fetched_after: Optional[datetime] = None,
+        fetched_before: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
         """
         Fetch top priority analyzed articles from ArticleStore
 
         Args:
             max_articles: Maximum number of articles to fetch
+            fetched_after: Only include articles fetched after this time
+            fetched_before: Only include articles fetched before this time
 
         Returns:
             List[dict]: List of article dictionaries
@@ -297,7 +419,9 @@ class CuratorDailyRunner:
             # Fetch more articles than needed to allow for deduplication
             articles = self.article_store.get_top_priority(
                 limit=max_articles * 3,  # Fetch 3x to have buffer for dedup
-                status='analyzed'
+                status='analyzed',
+                fetched_after=fetched_after,
+                fetched_before=fetched_before
             )
 
             # Ensure all articles have required fields
