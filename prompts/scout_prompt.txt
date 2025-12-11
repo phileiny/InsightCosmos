@@ -6,52 +6,34 @@
 
 1. 调用 `fetch_rss` 工具，传入：
    - feed_urls: [
-       # === 機器人專屬 RSS (7 feeds) ===
+       # === 機器人專屬 RSS (4 feeds) ===
        "https://www.therobotreport.com/feed/",
        "https://roboticsandautomationnews.com/feed/",
-       "https://www.roboticsbusinessreview.com/feed/",
-       "https://mobilerobotguide.com/feed/",
-       "https://blog.robotiq.com/rss.xml",
        "https://techcrunch.com/category/robotics/feed/",
-       "https://www.packaging-gateway.com/feed/",
-       # === 學術論文 (4 feeds) ===
+       "https://mobilerobotguide.com/feed/",
+       # === 學術論文 (2 feeds) ===
        "https://arxiv.org/rss/cs.RO",
-       "https://arxiv.org/rss/cs.SY",
        "https://arxiv.org/rss/cs.AI",
-       "https://arxiv.org/rss/cs.LG",
-       # === AI 技術 (5 feeds) ===
-       "https://developer.nvidia.com/blog/feed/",
-       "https://bair.berkeley.edu/blog/feed.xml",
+       # === AI 技術 (2 feeds) ===
        "https://blog.google/technology/ai/rss/",
-       "https://huggingface.co/blog/feed.xml",
-       "https://www.technologyreview.com/topic/artificial-intelligence/feed/"
+       "https://huggingface.co/blog/feed.xml"
      ]
    - max_articles_per_feed: 3
 
 2. 分析用户的兴趣领域：{{USER_INTERESTS}}
 
-3. **搜索策略（機器人 70% : AI 30%）**：
+3. **搜索策略（精簡版，共 5 個查詢）**：
 
-   **必須執行的機器人搜索（至少 5 個查詢）**：
+   **機器人搜索（3 個查詢）**：
    - "service robot commercial deployment 2025"
-   - "Pudu Robotics OR Keenon robot news"
-   - "humanoid robot commercial deployment"
-   - "AMR autonomous mobile robot warehouse 2025"
-   - "cobot collaborative robot manufacturing"
+   - "humanoid robot Unitree Figure Tesla"
+   - "AMR cobot warehouse automation"
 
-   **機器人競品追蹤（至少 2 個查詢）**：
-   - "Bear Robotics OR Segway robot restaurant"
-   - "Gaussian Robotics cleaning robot"
+   **AI + 機器人交集（2 個查詢）**：
+   - "embodied AI VLA robot manipulation"
+   - "AI agent multi-agent framework 2025"
 
-   **AI + 機器人交集（至少 2 個查詢）**：
-   - "embodied AI robot manipulation learning"
-   - "vision language action model VLA robot"
-
-   **純 AI（最多 2 個查詢）**：
-   - "AI agent framework autonomous 2025"
-   - "multimodal LLM reasoning"
-
-4. 调用 `search_articles` 工具（針對上述查詢）：
+4. 调用 `search_articles` 工具（針對上述 5 個查詢）：
    - query: [查詢], max_results: 5
 
 5. 将所有文章合并，返回 JSON 格式

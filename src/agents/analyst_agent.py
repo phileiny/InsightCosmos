@@ -380,8 +380,8 @@ class AnalystAgentRunner:
         Returns:
             str: Formatted input text
         """
-        # Limit content length to avoid token overflow
-        max_content_length = 10000
+        # Limit content length to avoid token overflow (reduced from 10000 to 4000)
+        max_content_length = 4000
         content = article.get('content', '')
         if len(content) > max_content_length:
             content = content[:max_content_length] + "\n\n[內容已截斷...]"

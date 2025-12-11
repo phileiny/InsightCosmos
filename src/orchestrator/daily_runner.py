@@ -255,9 +255,14 @@ class DailyPipelineOrchestrator:
         )
         analyzed_count = 0
 
-        # 獲取 'collected' 狀態的文章
+        # 獲取 'collected' 狀態的文章（限制最多分析 30 篇以節省 API 費用）
+        MAX_ARTICLES_TO_ANALYZE = 30
         pending_articles = self.article_store.get_by_status("collected")
         self.logger.info(f"  Found {len(pending_articles)} pending articles to analyze")
+
+        if len(pending_articles) > MAX_ARTICLES_TO_ANALYZE:
+            self.logger.info(f"  Limiting to top {MAX_ARTICLES_TO_ANALYZE} articles to save API costs")
+            pending_articles = pending_articles[:MAX_ARTICLES_TO_ANALYZE]
 
         if len(pending_articles) == 0:
             self.logger.info("  No pending articles, checking if we should re-analyze recent articles...")
